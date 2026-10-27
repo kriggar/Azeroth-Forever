@@ -1,0 +1,58 @@
+name: Verify Playable CoA Server (Existing Official Package)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-existing-coa-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-login-ready-server:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - name: Get Azeroth Forever server testing tools
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/coa-manager-server
+          filter: blob:none
+
+      - name: Reuse already-built, signed CoA Server Manager offline server package
+        uses: actions/download-artifact@v4
+        with:
+          name: Azeroth-Forever-Official-CoA-Server-Offline
+          repository: kriggar/Azeroth-Forever
+          run-id: 40600866549
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: \${{ runner.temp }}/Azeroth-Forever
+
+      - name: Install a pristine server through the actual CoA Manager engine
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = Join-Path $env:RUNNER_TEMP 'Azeroth-Forever'
+          $dest = Join-Path $env:RUNNER_TEMP 'CoA-Server-Integration-Test'
+          & (Join-Path $src 'CoA-Manager-Install.exe') (Join-Path $src 'Official-Server-Package') $dest
+          if ($LASTEXITCODE -ne 0) { throw 'CoA Server Manager full installation failed' }
+          "TEST_COA_DIR=$dest" >> $env:GITHUB_ENV
+
+      - name: Start MySQL, worldserver, authserver and create a test player
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & (Join-Path $env:GITHUB_WORKSPACE 'tools/coa-manager-server/Test-Local-Server.ps1') -ServerRoot $env:TEST_COA_DIR -StopWhenDone
+          if ($LASTEXITCODE -ne 0) { throw 'CoA was not login-ready on the disposable Windows runner' }
+          '## Server started, authentication and game-world TCP services responded, and live account creation passed' >> $env:GITHUB_STEP_SUMMARY
+          'Actual in-game character selection and visuals require a compatible CoA client and remain untested.' >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Prevent credentials and test databases from being published
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host 'All generated credentials and databases exist only on this disposable Windows runner.'
+          Write-Host 'No full server files, client data, or account passwords are uploaded by this test.'
