@@ -23,6 +23,8 @@ enum RulesetSpells : uint32
 };
 
 std::atomic<bool> pvpRulesetsDisableLevelScaling{true};
+// Azeroth Forever keeps the CoA classes, but not Ascension's alternate PvP rulesets.
+std::atomic<bool> vanillaOnly{true};
 
 bool InPvPRuleset(Player const* player)
 {
@@ -40,6 +42,10 @@ bool RulesetBlocksLevelScaling(Player const* player)
 
 void SyncRulesetPvP(Player* player)
 {
+    // Leave standard WoW flagging and battleground PvP to the core in vanilla mode.
+    if (vanillaOnly.load(std::memory_order_relaxed))
+        return;
+
     if (InPvPRuleset(player))
     {
         player->SetPlayerFlag(PLAYER_FLAGS_IN_PVP);
@@ -68,6 +74,9 @@ void RefreshMercenariesFor(Player* viewer)
 
 void ApplyRuleset(Player* player, uint32 selectionId)
 {
+    if (vanillaOnly.load(std::memory_order_relaxed))
+        selectionId = SPELL_SELECT_PVE;
+
     bool const blockedBefore = RulesetBlocksLevelScaling(player);
     player->RemoveAurasDueToSpell(SPELL_HIGH_RISK);
     player->RemoveAurasDueToSpell(SPELL_WAR_MODE);
@@ -128,6 +137,8 @@ class spell_ascension_ruleset_select : public SpellScript
     SpellCastResult CheckCast()
     {
         Player* player = GetCaster()->ToPlayer();
+        if (vanillaOnly.load(std::memory_order_relaxed) && GetSpellInfo()->Id != SPELL_SELECT_PVE)
+            return SPELL_FAILED_NOT_HERE;
         return player && player->HasPlayerFlag(PLAYER_FLAGS_RESTING) ? SPELL_CAST_OK : SPELL_FAILED_NOT_HERE;
     }
 
@@ -168,7 +179,10 @@ public:
 
     void OnAfterConfigLoad(bool) override
     {
+        vanillaOnly.store(
+            sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true), std::memory_order_relaxed);
         pvpRulesetsDisableLevelScaling.store(
+            !vanillaOnly.load(std::memory_order_relaxed) &&
             sConfigMgr->GetOption<bool>("CoA.Ruleset.DisableLevelScaling", true), std::memory_order_relaxed);
     }
 };
@@ -181,6 +195,8 @@ public:
 
     void OnPlayerMapChanged(Player* player) override
     {
+        if (vanillaOnly.load(std::memory_order_relaxed))
+            return;
         SyncRulesetPvP(player);
         if (pvpRulesetsDisableLevelScaling.load(std::memory_order_relaxed) && InPvPRuleset(player))
             player->RefreshQuestLogQueries();
@@ -188,6 +204,19 @@ public:
 
     void OnPlayerLogin(Player* player) override
     {
+        if (vanillaOnly.load(std::memory_order_relaxed))
+        {
+            // Purge old High-Risk / War Mode state on existing characters, not just new ones.
+            player->RemoveAurasDueToSpell(SPELL_HIGH_RISK);
+            player->RemoveAurasDueToSpell(SPELL_WAR_MODE);
+            player->RemoveAurasDueToSpell(SPELL_MERCENARY);
+            for (uint32 id : {SPELL_SELECT_WAR_MODE, SPELL_SELECT_HIGH_RISK})
+                player->removeSpell(id, 0xFF, false);
+            if (!player->HasAura(SPELL_PVE))
+                player->CastSpell(player, SPELL_PVE, true);
+            return;
+        }
+
         for (uint32 id : {SPELL_SELECT_WAR_MODE, SPELL_SELECT_HIGH_RISK, SPELL_SELECT_PVE})
             if (!player->HasSpell(id))
                 player->learnSpell(id, false);
