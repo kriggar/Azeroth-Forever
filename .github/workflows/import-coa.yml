@@ -1,0 +1,100 @@
+name: Import Conquest of Azeroth source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/import-coa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: azeroth-forever-source-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    if: github.repository == 'kriggar/Azeroth-Forever'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out Azeroth Forever
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Download upstream Conquest of AzerothCore
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f UPSTREAM_SOURCE.md ]; then
+            echo "already_imported=true" >> "$GITHUB_OUTPUT"
+            echo "Source already imported. Skipping."
+            exit 0
+          fi
+
+          git clone --depth 1 --no-tags --single-branch --branch main \
+            https://github.com/Conquest-of-AzerothCore/azerothcore-wotlk-coa.git \
+            "$RUNNER_TEMP/coa-upstream"
+
+          SOURCE_SHA="$(git -C "$RUNNER_TEMP/coa-upstream" rev-parse HEAD)"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+
+          test -f "$RUNNER_TEMP/coa-upstream/LICENSE"
+          test -f "$RUNNER_TEMP/coa-upstream/CMakeLists.txt"
+          test -d "$RUNNER_TEMP/coa-upstream/src/server/coa"
+          test -d "$RUNNER_TEMP/coa-upstream/modules"
+          test -d "$RUNNER_TEMP/coa-upstream/data/sql"
+
+      - name: Import tracked upstream source and record provenance
+        if: steps.upstream.outputs.already_imported != 'true'
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.upstream.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+
+          # Preserve our project README, workflow and design documents while
+          # importing all the public source files, including upstream license.
+          rsync -a \
+            --exclude='.git' \
+            --exclude='README.md' \
+            --exclude='UPSTREAM_SOURCE.md' \
+            "$RUNNER_TEMP/coa-upstream/" "$GITHUB_WORKSPACE/"
+
+          cat > UPSTREAM_SOURCE.md <<EOF
+          # Conquest of Azeroth source provenance
+
+          - Repository: https://github.com/Conquest-of-AzerothCore/azerothcore-wotlk-coa
+          - Branch: main
+          - Imported revision: \`$SOURCE_SHA\`
+          - Import date (UTC): $(date -u '+%Y-%m-%d')
+          - Method: snapshot of public upstream source via GitHub Actions
+
+          This import includes the upstream source files but does not include
+          upstream Git commit history. Refer to the upstream repository for
+          author history. Preserve the root LICENSE and individual source-file notices.
+
+          A successful import does not mean the server has compiled, started,
+          been deployed or been tested with a compatible client.
+          EOF
+
+          # GitHub blocks individual files larger than 100 MiB.
+          if find . -path './.git' -prune -o -type f -size +99M -print | grep .; then
+            echo "::error::Import contains files too large for GitHub. No push performed."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Import Conquest of AzerothCore source at $SOURCE_SHA"
+          git push origin HEAD:main
+
+      - name: Report status
+        if: success()
+        run: |
+          echo "Source workflow completed. Compilation and realm setup remain separate steps."
