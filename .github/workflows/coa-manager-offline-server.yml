@@ -109,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Azeroth-Forever-Official-CoA-Server-Offline
-          path: \${{ env.STAGED_SERVER }}/
+          path: ${{ env.STAGED_SERVER }}/
           include-hidden-files: true
           compression-level: 0
           retention-days: 1
