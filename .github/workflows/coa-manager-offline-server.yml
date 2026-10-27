@@ -1,0 +1,137 @@
+name: CoA Server — Real Manager Engine Install and Offline ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/coa-manager-server/**'
+      - '.github/workflows/coa-manager-offline-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coa-manager-offline-package
+  cancel-in-progress: true
+
+jobs:
+  package-and-test:
+    runs-on: windows-2022
+    timeout-minutes: 135
+    steps:
+      - name: Checkout Azeroth Forever's Manager integration
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/coa-manager-server
+          filter: blob:none
+
+      - name: Checkout exact official CoA Server Manager source
+        uses: actions/checkout@v4
+        with:
+          repository: Corfirean/coa-server-manager
+          ref: 925a81f4f2b26ef2ba876420fbc4cbf3557c56cb
+          path: manager-source
+
+      - name: Build genuine CoA Server Manager installation engine
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $examples = 'manager-source/crates/coa-core/examples'
+          New-Item -ItemType Directory -Force -Path $examples | Out-Null
+          Copy-Item -LiteralPath 'tools/coa-manager-server/manager_install.rs' -Destination (Join-Path $examples 'manager_install.rs')
+          cargo build --release -p coa-core --example manager_install --manifest-path 'manager-source/Cargo.toml'
+          if ($LASTEXITCODE -ne 0) { throw 'Official CoA Manager core failed to compile.' }
+          if (-not (Test-Path 'manager-source/target/release/examples/manager_install.exe')) {
+            throw 'CoA Manager installer executable is missing.'
+          }
+
+      - name: Assemble the actual publisher's signed CoA server package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = Join-Path $env:RUNNER_TEMP 'Azeroth-Forever'
+          $package = Join-Path $stage 'Official-Server-Package'
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item tools/coa-manager-server/Install-And-Start.ps1 $stage
+          Copy-Item tools/coa-manager-server/Start-Server.bat $stage
+          Copy-Item tools/coa-manager-server/Stop-Server.bat $stage
+          Copy-Item tools/coa-manager-server/manager_install.rs (Join-Path $stage 'manager_install_SOURCE.rs')
+          Copy-Item 'manager-source/LICENSE' (Join-Path $stage 'CoA-Server-Manager-LICENSE.txt')
+          Copy-Item 'manager-source/target/release/examples/manager_install.exe' (Join-Path $stage 'CoA-Manager-Install.exe')
+
+          $base = 'https://github.com/Corfirean/coa-server-build/releases/download/base'
+          $expected = @{
+            'manifest.json' = '0d03c2e3df18fa01ea99e477139342f48567f940fb3564a29c6d515219b5a117'
+            'manifest.json.sig' = '8ce3119308a1b4f49b5e8f103b6b4714fa8098c052e5a3e0d7afe5440227a747'
+            'base.tar.zst.001' = '2da8ddcffde326f49e1ce73c9fc1df1ed1d8017cc281977d607bce90ba0b5936'
+          }
+          foreach ($name in @('manifest.json', 'manifest.json.sig', 'base.tar.zst.001')) {
+            $target = Join-Path $package $name
+            Write-Host "Downloading official CoA Server Manager release asset: $name"
+            & curl.exe --fail --location --retry 3 --retry-delay 10 --connect-timeout 30 --output "$target" "$base/$name"
+            if ($LASTEXITCODE -ne 0) { throw "Failed downloading official file $name." }
+            $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant()
+            if ($digest -ne $expected[$name]) {
+              Remove-Item -LiteralPath $target -Force
+              throw "Downloaded file $name failed the pinned publisher digest."
+            }
+          }
+          @'
+          AZEROTH FOREVER — CoA SERVER MANAGER ORIGINAL BASE
+
+          This ZIP includes the complete signed official publisher BASE package,
+          and the CoA Server Manager's genuine Rust install_base engine.
+          It is NOT a source-code ZIP and will NOT download the base archive again.
+
+          1. Extract the GitHub Actions download ZIP somewhere with English letters.
+          2. Double-click Start-Server.bat.
+          3. The Manager installer verifies the signed archive, unpacks the files,
+             initializes MySQL, rotates DB passwords, and creates "CoA Server".
+          4. The launcher starts the server and attempts to create a private test login.
+          5. Use your existing compatible Conquest of Azeroth game client.
+
+          This is the original CoA base package, NOT automatically updated to the
+          newest Manager server release and NOT custom Azeroth Forever gameplay.
+          No client game executable is included. The game data in the official
+          server package have separate rights from the GPL/AGPL source code.
+
+          LICENSE:
+          https://github.com/Corfirean/coa-server-manager
+          https://github.com/Corfirean/coa-server-build
+
+          Do not upload the generated server's database.json, player saves or
+          locally generated developer passwords to a public repository.
+          '@ | Set-Content -Path (Join-Path $stage 'START_HERE.txt') -Encoding UTF8
+          "STAGED_SERVER=$stage" >> $env:GITHUB_ENV
+
+      - name: Upload complete self-contained OFFLINE package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-Official-CoA-Server-Offline
+          path: \${{ env.STAGED_SERVER }}/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Actually install on a disposable Windows test machine with the real Manager code
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = $env:STAGED_SERVER
+          $package = Join-Path $stage 'Official-Server-Package'
+          $dest = Join-Path $stage 'CoA Server'
+          & (Join-Path $stage 'CoA-Manager-Install.exe') $package $dest
+          if ($LASTEXITCODE -ne 0) { throw 'The CoA Manager install_base engine failed.' }
+          foreach ($relative in @('Settings/database.json', 'Core/worldserver.exe',
+                                   'Core/authserver.exe', 'Runtime/python/python.exe',
+                                   'Scripts/manage.py', 'mysql/data/mysql')) {
+            if (-not (Test-Path (Join-Path $dest $relative))) {
+              throw "Missing installed CoA server component: $relative"
+            }
+          }
+          Write-Host 'Verified: original CoA Server Manager downloaded, installed and initialized a complete server.'
+          "## CoA Server Manager base installation: passed" >> $env:GITHUB_STEP_SUMMARY
+          "The compiled Manager install_base engine created a real CoA Server folder and initialized MySQL." >> $env:GITHUB_STEP_SUMMARY
+          "The downloadable artifact contains the original signed, uninitialized base package so every user's DB credentials are generated locally." >> $env:GITHUB_STEP_SUMMARY
