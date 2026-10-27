@@ -1,0 +1,75 @@
+name: Portable Server ZIP (Windows)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/portable-server-zip.yml'
+      - 'tools/portable/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create-zip:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Azeroth Forever
+        uses: actions/checkout@v4
+
+      - name: Validate one-click PowerShell installer syntax
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'tools/portable/Setup-And-Start.ps1').Path,
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Host $_.ToString() }
+            throw 'Bootstrapper PowerShell parsing failed.'
+          }
+          Write-Host 'PowerShell 5.1 syntax: valid.'
+          if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) {
+            throw 'Windows tar.exe is not available to extract the upstream package.'
+          }
+
+      - name: Verify upstream base release digest is still pinned
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/Corfirean/coa-server-build/releases/tags/base' -Headers @{
+            'User-Agent' = 'Azeroth-Forever-CI'
+            'Accept' = 'application/vnd.github+json'
+          }
+          $asset = @($release.assets | Where-Object name -eq 'base.tar.zst.001')
+          if ($asset.Count -ne 1) { throw 'The pinned upstream base package is missing.' }
+          $expected = 'sha256:2da8ddcffde326f49e1ce73c9fc1df1ed1d8017cc281977d607bce90ba0b5936'
+          if ($asset[0].digest -ne $expected) {
+            throw 'Upstream asset digest changed. Review and manually repin before releasing.'
+          }
+          Write-Host "Pinned official base asset confirmed ($($asset[0].size) bytes)."
+
+      - name: Package GitHub-downloadable ZIP launcher
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item tools/portable/Setup-And-Start.ps1 package/
+          Copy-Item tools/portable/Start_Azeroth_Forever.bat package/
+          Copy-Item tools/portable/Stop_Azeroth_Forever.bat package/
+          Copy-Item tools/portable/README.md package/
+          Compress-Archive -LiteralPath package/Setup-And-Start.ps1,package/Start_Azeroth_Forever.bat,package/Stop_Azeroth_Forever.bat,package/README.md -DestinationPath Azeroth-Forever-Portable-Server-Installer.zip
+          $hash = (Get-FileHash -Algorithm SHA256 Azeroth-Forever-Portable-Server-Installer.zip).Hash
+          "Azeroth-Forever-Portable-Server-Installer.zip sha256 $hash" >> $env:GITHUB_STEP_SUMMARY
+          "First run downloads the official signed-release BASE archive from its publisher, not from this repository." >> $env:GITHUB_STEP_SUMMARY
+          "A playable test realm is NOT claimed until an actual Windows startup and compatible client test pass." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload portable server ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-Portable-Server-Installer
+          path: Azeroth-Forever-Portable-Server-Installer.zip
+          retention-days: 30
+          if-no-files-found: error
