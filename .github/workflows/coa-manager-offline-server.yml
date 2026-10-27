@@ -105,16 +105,6 @@ jobs:
           '@ | Set-Content -Path (Join-Path $stage 'START_HERE.txt') -Encoding UTF8
           "STAGED_SERVER=$stage" >> $env:GITHUB_ENV
 
-      - name: Upload complete self-contained OFFLINE package
-        uses: actions/upload-artifact@v4
-        with:
-          name: Azeroth-Forever-Official-CoA-Server-Offline
-          path: ${{ env.STAGED_SERVER }}/
-          include-hidden-files: true
-          compression-level: 0
-          retention-days: 1
-          if-no-files-found: error
-
       - name: Actually install on a disposable Windows test machine with the real Manager code
         shell: pwsh
         run: |
@@ -135,3 +125,24 @@ jobs:
           "## CoA Server Manager base installation: passed" >> $env:GITHUB_STEP_SUMMARY
           "The compiled Manager install_base engine created a real CoA Server folder and initialized MySQL." >> $env:GITHUB_STEP_SUMMARY
           "The downloadable artifact contains the original signed, uninitialized base package so every user's DB credentials are generated locally." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Verify the installed world actually starts and accepts a new account
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $server = Join-Path $env:STAGED_SERVER 'CoA Server'
+          & 'tools/coa-manager-server/Test-Local-Server.ps1' -ServerRoot $server -StopWhenDone
+          if ($LASTEXITCODE -ne 0) { throw 'Real CoA Server Manager worldserver validation failed.' }
+          "## Real CoA authserver/worldserver startup and account creation passed" >> $env:GITHUB_STEP_SUMMARY
+
+
+      - name: Publish complete offline server package only after startup passes
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-Official-CoA-Server-Offline
+          path: ${{ env.STAGED_SERVER }}/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
