@@ -1,0 +1,37 @@
+name: Verify Vanilla CoA Profile (fast)
+
+on:
+  push:
+    branches:
+      - feature/vanilla-coa-baseline
+    paths:
+      - '.github/workflows/verify-vanilla-profile.yml'
+      - '.github/workflows/build-windows-exe.yml'
+      - 'src/server/coa/**'
+      - 'src/server/apps/worldserver/worldserver.conf.dist'
+      - 'data/sql/updates/pending_db_world/rev_20261028_00_azeroth_forever_vanilla_remove_shortcut_spawns.sql'
+      - 'tools/vanilla/**'
+  pull_request:
+    paths:
+      - 'src/server/coa/**'
+      - 'src/server/apps/worldserver/worldserver.conf.dist'
+      - 'data/sql/updates/pending_db_world/**'
+      - 'tools/vanilla/**'
+      - '.github/workflows/verify-vanilla-profile.yml'
+      - '.github/workflows/build-windows-exe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vanilla-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+      - name: Verify vanilla contract preserves classes and trainers
+        run: python3 tools/vanilla/verify.py
