@@ -20,6 +20,16 @@ The Manager's published build includes additional independent modules (playerbot
 
 Preserve the upstream license and individual file notices. Client-extracted game assets and proprietary data are not covered by the public source license and must not be committed here.
 
+## Complete prebuilt CoA Server Manager base archive (actual server files)
+
+**[Download the full server package from GitHub Actions](https://github.com/kriggar/Azeroth-Forever/actions/workflows/download-complete-coa-server.yml)**
+
+The successful [full CoA package run](https://github.com/kriggar/Azeroth-Forever/actions/runs/40599495198) fetched the real published CoA Server Manager base archive (about 1.5 GB compressed), checked its publisher SHA-256 and uploaded it as the `Azeroth-Forever-CoA-Full-Server` artifact.
+
+**Use the Actions artifact, not Code → Download ZIP.** The Code button only exports the open-source development tree; game-server data and executables are too large for an ordinary Git checkout. Download the artifact, extract it, then double-click `Start_Azeroth_Forever.bat`. The official server archive is already included, so you do not need to download it separately during initial installation.
+
+**Caveats:** This is the original publisher's base package, not a fully updated Manager install or our later custom binaries. An end-to-end Windows startup/client login has not yet passed. The extracted client-derived game files are not licensed as part of the GPL source code, so this artifact is intended for temporary personal testing rather than public redistribution. The artifact expires; re-run its workflow to prepare a fresh package.
+
 ## Download and test locally
 
 - **Portable Windows server launcher:** [Download the latest successful ZIP build](https://github.com/kriggar/Azeroth-Forever/actions/workflows/portable-server-zip.yml). Extract the artifact ZIP and double-click `Start_Azeroth_Forever.bat`. On first launch it downloads the original publisher's pinned CoA Server Manager base archive directly from the publisher, then attempts to start the local server and create a test account. The game client is separate.
