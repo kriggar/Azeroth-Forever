@@ -1,0 +1,93 @@
+name: Download CoA Server Manager's Complete Server for Local Testing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/download-complete-coa-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  download-server:
+    name: Download official prebuilt server and package for Windows
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Azeroth Forever portable launcher only
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: tools/portable
+
+      - name: Prepare complete local test distribution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'Azeroth-Forever-Server'
+          $dl = Join-Path $root '.downloads'
+          New-Item -ItemType Directory -Path $dl -Force | Out-Null
+          Copy-Item tools/portable/Setup-And-Start.ps1 $root
+          Copy-Item tools/portable/Start_Azeroth_Forever.bat $root
+          Copy-Item tools/portable/Stop_Azeroth_Forever.bat $root
+          Copy-Item tools/portable/README.md $root
+
+          $archive = Join-Path $dl 'base.tar.zst.001'
+          $uri = 'https://github.com/Corfirean/coa-server-build/releases/download/base/base.tar.zst.001'
+          $expected = '2da8ddcffde326f49e1ce73c9fc1df1ed1d8017cc281977d607bce90ba0b5936'
+          Write-Host 'Downloading the ACTUAL original CoA Server Manager prebuilt server (not GitHub source code).'
+          Write-Host 'Official publisher: Corfirean/coa-server-build, base release.'
+          $attempts = 3
+          for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+            try {
+              & curl.exe --fail --location --retry 3 --retry-delay 5 --connect-timeout 30 --output $archive $uri
+              if ($LASTEXITCODE -ne 0) { throw "curl failed with exit code $LASTEXITCODE" }
+              if ((Get-Item $archive).Length -lt 1000000000) { throw 'Server package download is too small.' }
+              break
+            } catch {
+              Remove-Item $archive -ErrorAction SilentlyContinue
+              if ($attempt -eq $attempts) { throw }
+              Start-Sleep -Seconds 10
+            }
+          }
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Official CoA package SHA256 mismatch ($actual); refusing to redistribute it." }
+          Write-Host 'Complete original CoA server archive downloaded and cryptographically verified.'
+          @'
+          AZEROTH FOREVER — PREBUILT CoA SERVER (PERSONAL LOCAL TESTING)
+
+          This GitHub Actions artifact includes the original CoA Server Manager
+          prebuilt server BASE ARCHIVE, not just source code.
+          Unzip the GitHub Actions artifact, then run:
+              Start_Azeroth_Forever.bat
+          The first launch extracts the INCLUDED server archive and starts MySQL,
+          authserver and worldserver. No second server-package download is needed.
+          Use a compatible CoA/Ascension client, which is not included.
+
+          SOURCE:
+          https://github.com/Corfirean/coa-server-build/releases/tag/base
+          The original author publishes game-client-extracted DBCs/maps/vmaps/mmaps
+          separately from its free software license. This package is provided
+          for the repository owner's temporary personal testing; do not publish
+          it as a public game/client redistribution.
+
+          This is the ORIGINAL manager base server. It does NOT yet incorporate
+          newer signed manager updates or our custom Azeroth Forever binaries.
+          No startup/gameplay success is claimed until tested on Windows.
+          '@ | Set-Content -Path (Join-Path $root 'START_HERE.txt') -Encoding UTF8
+
+          "Server archive present: $((Get-Item $archive).Length) bytes" >> $env:GITHUB_STEP_SUMMARY
+          "SHA256 verified: $actual" >> $env:GITHUB_STEP_SUMMARY
+          "Download the artifact from this run; it contains the complete original prebuilt CoA BASE server archive." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload owner's complete CoA local test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-CoA-Full-Server
+          path: ${{ runner.temp }}/Azeroth-Forever-Server/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
