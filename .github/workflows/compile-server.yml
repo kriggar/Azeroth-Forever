@@ -1,0 +1,145 @@
+name: Compile Azeroth Forever (Linux)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compile-server.yml'
+      - 'CMakeLists.txt'
+      - 'PreLoad.cmake'
+      - 'src/**'
+      - 'modules/**'
+      - 'deps/**'
+      - 'conf/**'
+      - 'data/sql/**'
+      - 'tools/**'
+      - 'apps/**'
+  pull_request:
+    paths:
+      - '.github/workflows/compile-server.yml'
+      - 'CMakeLists.txt'
+      - 'PreLoad.cmake'
+      - 'src/**'
+      - 'modules/**'
+      - 'deps/**'
+      - 'conf/**'
+      - 'data/sql/**'
+      - 'tools/**'
+      - 'apps/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compile-server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-server:
+    name: Verify source, compile both servers, run unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CMAKE_BUILD_PARALLEL_LEVEL: "4"
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Install AzerothCore build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential ccache cmake ninja-build pkg-config \
+            libboost-all-dev libssl-dev default-libmysqlclient-dev \
+            libreadline-dev zlib1g-dev libbz2-dev libncurses-dev \
+            liblzma-dev libtool
+
+      - name: Prepare compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-linux-gcc-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-linux-gcc-${{ github.ref_name }}-
+            ccache-linux-gcc-
+
+      - name: Configure upstream verification for both worldserver and authserver
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path.cwd()
+          settings = {
+              "build_directory": str(root / "build"),
+              "cmake_args": [
+                  "-G", "Ninja",
+                  "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+                  "-DAPPS_BUILD=all",
+                  "-DTOOLS_BUILD=none",
+                  "-DSCRIPTS=static",
+                  "-DMODULES=static",
+                  "-DBUILD_TESTING=ON",
+                  "-DCMAKE_INSTALL_PREFIX=" + str(root / "env" / "dist"),
+                  "-DCMAKE_C_COMPILER_LAUNCHER=ccache",
+                  "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache",
+                  "-DCMAKE_C_FLAGS_RELWITHDEBINFO=-O2 -g1 -DNDEBUG",
+                  "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g1 -DNDEBUG",
+              ],
+          }
+          Path("conf/verify-all.json").write_text(json.dumps(settings, indent=2) + "\n")
+          PY
+          ccache --zero-stats
+          python3 -B tools/verify_all.py --stages source,build,unit --plan
+
+      - name: Source checks, native server compilation and unit tests
+        shell: bash
+        run: python3 -B tools/verify_all.py --stages source,build,unit
+
+      - name: Collect build reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: azeroth-forever-verify-${{ github.run_number }}
+          path: |
+            .cache/verify-all/**/report.json
+            .cache/verify-all/**/source.log
+            .cache/verify-all/**/build.log
+            .cache/verify-all/**/unit.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Install compiled binaries and templates
+        if: success()
+        run: |
+          cmake --install build
+          test -x env/dist/bin/worldserver
+          test -x env/dist/bin/authserver
+
+      - name: Publish development server binaries
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: azeroth-forever-linux-x64-${{ github.sha }}
+          path: |
+            env/dist/bin/worldserver
+            env/dist/bin/authserver
+            env/dist/etc
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Compilation summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Azeroth Forever server compilation" >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verification: \`python -B tools/verify_all.py --stages source,build,unit\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "This job compiles source and unit tests only. A running realm still requires CoA-compatible client data, MySQL and a host." >> "$GITHUB_STEP_SUMMARY"
