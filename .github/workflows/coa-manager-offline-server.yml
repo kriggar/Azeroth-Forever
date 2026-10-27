@@ -111,7 +111,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $stage = $env:STAGED_SERVER
           $package = Join-Path $stage 'Official-Server-Package'
-          $dest = Join-Path $stage 'CoA Server'
+          $dest = Join-Path $env:RUNNER_TEMP 'CoA-Validation-Server'
           & (Join-Path $stage 'CoA-Manager-Install.exe') $package $dest
           if ($LASTEXITCODE -ne 0) { throw 'The CoA Manager install_base engine failed.' }
           foreach ($relative in @('Settings/database.json', 'Core/worldserver.exe',
@@ -130,8 +130,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $server = Join-Path $env:STAGED_SERVER 'CoA Server'
-          & 'tools/coa-manager-server/Test-Local-Server.ps1' -ServerRoot $server -StopWhenDone
+          $server = Join-Path $env:RUNNER_TEMP 'CoA-Validation-Server'
+          & (Join-Path $env:GITHUB_WORKSPACE 'tools/coa-manager-server/Test-Local-Server.ps1') -ServerRoot $server -StopWhenDone
           if ($LASTEXITCODE -ne 0) { throw 'Real CoA Server Manager worldserver validation failed.' }
           "## Real CoA authserver/worldserver startup and account creation passed" >> $env:GITHUB_STEP_SUMMARY
 
