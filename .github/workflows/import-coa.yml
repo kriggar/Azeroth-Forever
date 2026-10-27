@@ -64,7 +64,7 @@ jobs:
           rsync -a \
             --exclude='.git' \
             --exclude='.github/workflows/' \
-            --exclude='README.md' \
+            --exclude='/README.md' \
             --exclude='UPSTREAM_SOURCE.md' \
             "$RUNNER_TEMP/coa-upstream/" "$GITHUB_WORKSPACE/"
 
@@ -96,6 +96,47 @@ jobs:
           git add -A
           git commit -m "Import Conquest of AzerothCore source at $SOURCE_SHA"
           git push origin HEAD:main
+
+      - name: Restore upstream setup guides excluded during initial import
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f UPSTREAM_SOURCE.md ]; then
+            echo "No import provenance yet; no documentation recovery needed."
+            exit 0
+          fi
+
+          # Recover only missing nested README.md files from the exact imported SHA.
+          # Keep the Azeroth Forever root README and never touch workflow files.
+          sha="$(grep '^- Imported revision:' UPSTREAM_SOURCE.md | grep -oE '[0-9a-f]{40}' | head -n 1)"
+          if [ -z "$sha" ]; then
+            echo "::error::Cannot recover pinned upstream commit"
+            exit 1
+          fi
+          src="$RUNNER_TEMP/coa-readme-recovery"
+          git clone --depth 1 --no-tags --single-branch --branch main \
+            https://github.com/Conquest-of-AzerothCore/azerothcore-wotlk-coa.git "$src"
+          git -C "$src" fetch --depth 1 origin "$sha"
+          git -C "$src" checkout --detach "$sha"
+          count=0
+          while IFS= read -r -d '' file; do
+            relative="${file#"$src"/}"
+            if [ "$relative" = "README.md" ]; then continue; fi
+            target="$GITHUB_WORKSPACE/$relative"
+            if [ ! -f "$target" ]; then
+              mkdir -p "$(dirname "$target")"
+              cp "$file" "$target"
+              count=$((count + 1))
+            fi
+          done < <(find "$src" -type f -name README.md ! -path '*/.git/*' -print0)
+          echo "Restored $count missing upstream readmes"
+          if [ "$count" -gt 0 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "Restore upstream setup documentation at $sha"
+            git push origin HEAD:main
+          fi
 
       - name: Report status
         if: success()
