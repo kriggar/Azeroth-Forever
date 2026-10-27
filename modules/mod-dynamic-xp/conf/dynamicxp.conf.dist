@@ -1,0 +1,49 @@
+[worldserver]
+
+################################################################################################################
+#    Dynamic.XP
+#        Description: a flat XP rate for the realm, a rate a player can pick for themselves,
+#                     and a reminder about it.
+#
+#        Dynamic.XP.Rate.Announce: 1 (Enable) tells each player their rate on login
+#                                  0 (Disable) Default - the realm-wide reminder covers it
+#
+#        Dynamic.XP.Preset: the realm rate, and the default for every character that has
+#                           not picked one. Read at startup and on ".reload config", so
+#                           editing this line by hand works.
+#                           1 (default) = no bonus, 3 = triple experience at every level.
+#                           A rate that Dynamic.XP.Preset.Allowed does not list falls back to 1.
+#
+#        Dynamic.XP.Preset.Allowed: the rates ".xp <rate>" and ".xp realm <rate>" offer, as a
+#                                   comma-separated list of whole numbers from 1 to 31.
+#                                   Default "1,2,3,4,5"; 1 is always offered. A character
+#                                   that stored a rate missing from the list is put back on
+#                                   the realm rate at login and keeps it.
+#
+#        Dynamic.XP.Preset.PlayerChoice: 1 (Default) lets players change their own rate with
+#                                        ".xp <rate>" and ".xp default"
+#                                        0 = game masters only
+#
+#        Dynamic.XP.Reminder.*: the realm-wide note about ".xp". Interval is in minutes,
+#                               0 turns the repeat off; Message is sent as-is (colour codes
+#                               and all). An empty Message lists the offered rates by itself.
+#                               It is announced when a player logs in and then every Interval
+#                               minutes, to players who have not disabled automatic
+#                               announcements.
+#
+
+Dynamic.XP.Rate.Announce = 0
+
+Dynamic.XP.Preset = 1
+
+Dynamic.XP.Preset.Allowed = "1,2,3,4,5"
+
+Dynamic.XP.Preset.PlayerChoice = 1
+
+Dynamic.XP.Reminder.Enable = 1
+
+Dynamic.XP.Reminder.Interval = 40
+
+Dynamic.XP.Reminder.Message = ""
+
+##################################################################################################################
