@@ -18,6 +18,9 @@ jobs:
     steps:
       - name: Checkout Azeroth Forever
         uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: tools/portable
 
       - name: Validate one-click PowerShell installer syntax
         shell: powershell
@@ -60,16 +63,14 @@ jobs:
           Copy-Item tools/portable/Start_Azeroth_Forever.bat package/
           Copy-Item tools/portable/Stop_Azeroth_Forever.bat package/
           Copy-Item tools/portable/README.md package/
-          Compress-Archive -LiteralPath package/Setup-And-Start.ps1,package/Start_Azeroth_Forever.bat,package/Stop_Azeroth_Forever.bat,package/README.md -DestinationPath Azeroth-Forever-Portable-Server-Installer.zip
-          $hash = (Get-FileHash -Algorithm SHA256 Azeroth-Forever-Portable-Server-Installer.zip).Hash
-          "Azeroth-Forever-Portable-Server-Installer.zip sha256 $hash" >> $env:GITHUB_STEP_SUMMARY
+          "Ready for download: Azeroth-Forever-Portable-Server.zip (GitHub artifact)." >> $env:GITHUB_STEP_SUMMARY
           "First run downloads the official signed-release BASE archive from its publisher, not from this repository." >> $env:GITHUB_STEP_SUMMARY
           "A playable test realm is NOT claimed until an actual Windows startup and compatible client test pass." >> $env:GITHUB_STEP_SUMMARY
 
       - name: Upload portable server ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: Azeroth-Forever-Portable-Server-Installer
-          path: Azeroth-Forever-Portable-Server-Installer.zip
+          name: Azeroth-Forever-Portable-Server
+          path: package/
           retention-days: 30
           if-no-files-found: error
