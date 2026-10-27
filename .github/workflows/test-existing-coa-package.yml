@@ -28,8 +28,8 @@ jobs:
           name: Azeroth-Forever-Official-CoA-Server-Offline
           repository: kriggar/Azeroth-Forever
           run-id: 40600866549
-          github-token: \${{ secrets.GITHUB_TOKEN }}
-          path: \${{ runner.temp }}/Azeroth-Forever
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/Azeroth-Forever
 
       - name: Install a pristine server through the actual CoA Manager engine
         shell: pwsh
