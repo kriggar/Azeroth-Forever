@@ -58,9 +58,12 @@ jobs:
           set -euo pipefail
 
           # Preserve our project README, workflow and design documents while
-          # importing all the public source files, including upstream license.
+          # importing all public server files and the upstream license.
+          # Exclude upstream workflow files: the GitHub Actions token cannot
+          # create or modify workflow definitions without workflows permission.
           rsync -a \
             --exclude='.git' \
+            --exclude='.github/workflows/' \
             --exclude='README.md' \
             --exclude='UPSTREAM_SOURCE.md' \
             "$RUNNER_TEMP/coa-upstream/" "$GITHUB_WORKSPACE/"
