@@ -1,0 +1,126 @@
+name: Replace source with CoA Server Manager server fork
+
+on:
+  push:
+    paths:
+      - '.github/workflows/replace-with-manager-server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: azeroth-forever-source-replacement
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: github.repository == 'kriggar/Azeroth-Forever'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out Azeroth Forever
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Replace old CoA implementation with manager's server source
+        shell: bash
+        env:
+          COA_FORK_REVISION: 1c658cab46d5057a8972cebd84c840aa6fbc4a91
+        run: |
+          set -euo pipefail
+
+          if [ -f MANAGER_SOURCE.md ]; then
+            echo 'The Manager source has already been imported; refusing to overwrite subsequent development.'
+            exit 0
+          fi
+
+          src="$RUNNER_TEMP/coa-manager-server-core"
+          git clone --no-tags --single-branch --depth 1 --branch coa-bots \
+            https://github.com/Corfirean/azerothcore-wotlk-coa.git "$src"
+          git -C "$src" fetch --depth 1 origin "$COA_FORK_REVISION"
+          git -C "$src" checkout --detach "$COA_FORK_REVISION"
+
+          test -f "$src/LICENSE"
+          test -f "$src/CMakeLists.txt"
+          test -f "$src/src/server/coa/AscensionClassBundleStore.cpp"
+          test -f "$src/modules/mod-worldforged-upgrades/src/WorldforgedUpgrades.h"
+          test -f "$src/modules/mod-coa-raid-difficulty/src/boss_geddon_coa.cpp"
+          test -d "$src/data/sql/updates"
+
+          # Fully replace the previously imported source with the exact fork
+          # used by the Manager build pipeline. Leave .git and workflow definitions
+          # intact: the GitHub Actions token cannot update workflow files.
+          rsync -a --delete \
+            --exclude='.git' \
+            --exclude='/.github/workflows/' \
+            "$src/" "$GITHUB_WORKSPACE/"
+
+          cat > README.md <<'DOC'
+          # Azeroth Forever
+
+          Source baseline: [Corfirean/azerothcore-wotlk-coa](https://github.com/Corfirean/azerothcore-wotlk-coa), branch `coa-bots`, which is the server-core fork used by the [CoA Server Manager build pipeline](https://github.com/Corfirean/coa-server-build).
+
+          The project's direction is the full Conquest of Azeroth class roster with a slower, meaningful, original-Azeroth 1–60 experience. Azeroth Forever is a separate development project, not an official Conquest of Azeroth release.
+
+          See [the exact upstream source revision](MANAGER_SOURCE.md).
+
+          ## What is in this repository?
+
+          The **open-source server core**, game scripts, database changes, module sources, and development files. This repository does **not** contain a preinstalled Windows desktop application, a running server, the Manager's official signed releases, or the proprietary WoW/CoA game client data.
+
+          The Manager's published build includes additional independent modules (playerbots, content scaling, SQUID) and a signed base package containing client-extracted data. Those must be handled separately; core code alone is not identical to the prebuilt package.
+
+          - [Download the CoA Server Manager for Windows](https://github.com/Corfirean/coa-server-manager/releases/latest)
+          - [Official Manager-compatible server package pipeline](https://github.com/Corfirean/coa-server-build)
+          - [Azeroth Forever GitHub Actions](https://github.com/kriggar/Azeroth-Forever/actions)
+
+          ## Licensing
+
+          Preserve the upstream license and individual file notices. Client-extracted game assets and proprietary data are not covered by the public source license and must not be committed here.
+          DOC
+
+          cat > MANAGER_SOURCE.md <<DOC
+          # Azeroth Forever — CoA Server Manager source provenance
+
+          - Source: https://github.com/Corfirean/azerothcore-wotlk-coa
+          - Source branch: `coa-bots`
+          - Exact source revision: `$COA_FORK_REVISION`
+          - Distribution/build reference: https://github.com/Corfirean/coa-server-build
+          - Desktop manager: https://github.com/Corfirean/coa-server-manager
+
+          The imported tree replaces the earlier Conquest-of-AzerothCore snapshot.
+          A backup of the earlier code is preserved in Git branch
+          `backup/before-coa-manager-source`.
+
+          This is the Manager-compatible core source, not the Manager's installed
+          server distribution: the official packaging step additionally integrates
+          modules, game data and signed manifests. Compilation and gameplay
+          compatibility must be independently verified.
+
+          Source files retain their original licenses and notices.
+          DOC
+
+          if find . -path './.git' -prune -o -type f -size +99M -print | grep .; then
+            echo "::error::Cannot push individual files larger than GitHub's limit."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          test -f modules/mod-worldforged-upgrades/src/WorldforgedUpgrades.h
+          test -f modules/mod-coa-raid-difficulty/src/boss_geddon_coa.cpp
+          if git diff --cached --quiet; then
+            echo 'No source changes detected.'
+          else
+            git commit -m "Replace Azeroth Forever with CoA Server Manager core at $COA_FORK_REVISION"
+            git push origin HEAD:main
+          fi
+
+      - name: Confirm source revision
+        run: |
+          echo "Target source: Corfirean/azerothcore-wotlk-coa@1c658cab46d5057a8972cebd84c840aa6fbc4a91"
+          echo "Replacing source does not install software on a PC or create a running realm."
