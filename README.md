@@ -14,7 +14,11 @@ Azeroth Forever is an independent, Classic-style World of Warcraft server develo
 
 ## Source and status
 
-The target upstream is `Conquest-of-AzerothCore/azerothcore-wotlk-coa`. This repository is being initialized for the source import and game development. **Do not treat this README as evidence that the CoA server has been imported or built.**
+The complete public Conquest of AzerothCore source snapshot was imported at upstream revision [`9fae1a46`](https://github.com/Conquest-of-AzerothCore/azerothcore-wotlk-coa/commit/9fae1a4628d46fb36e1d3f4c5d80be1ca6a553c4). See [source provenance](UPSTREAM_SOURCE.md).
+
+**Automated Linux C++ build:** [GitHub Actions – Compile Azeroth Forever](https://github.com/kriggar/Azeroth-Forever/actions/workflows/compile-server.yml). The workflow verifies source, compiles the worldserver and authserver, runs unit tests, and publishes successful build artifacts.
+
+**Source imported does not mean game-ready.** A successful compile only establishes that binaries build; startup, database readiness and client-side gameplay tests are separate work.
 
 A playable server also needs a compatible client, the required game data and world database, database credentials, a build environment, and a server host. The source code alone is not a complete client download.
 
