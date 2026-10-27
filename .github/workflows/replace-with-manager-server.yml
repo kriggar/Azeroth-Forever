@@ -120,6 +120,88 @@ jobs:
             git push origin HEAD:main
           fi
 
+      - name: Recover ignored but upstream-tracked CoA server files
+        shell: bash
+        env:
+          COA_FORK_REVISION: 1c658cab46d5057a8972cebd84c840aa6fbc4a91
+        run: |
+          set -euo pipefail
+          src="$RUNNER_TEMP/coa-source-recovery"
+          git clone --depth 1 --no-tags --single-branch --branch coa-bots \
+            https://github.com/Corfirean/azerothcore-wotlk-coa.git "$src"
+          git -C "$src" fetch --depth 1 origin "$COA_FORK_REVISION"
+          git -C "$src" checkout --detach "$COA_FORK_REVISION"
+
+          python3 - <<'PY'
+          import os
+          import shutil
+          import subprocess
+          from pathlib import Path
+
+          upstream = Path(os.environ["RUNNER_TEMP"]) / "coa-source-recovery"
+          current = Path.cwd()
+          upstream_files = set(
+              subprocess.check_output(["git", "-C", str(upstream), "ls-files", "-z"]).split(b"\0")
+          )
+          destination_files = set(subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0"))
+
+          # The Azeroth Forever README is intentional. Other upstream workflow files
+          # cannot be committed by the GitHub Actions token with current permissions.
+          required = sorted(
+              path for path in upstream_files
+              if path and path != b"README.md" and not path.startswith(b".github/workflows/")
+          )
+          missing = [path for path in required if path not in destination_files]
+
+          for raw_path in missing:
+              relative = os.fsdecode(raw_path)
+              source = upstream / relative
+              destination = current / relative
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              if source.is_symlink():
+                  destination.symlink_to(os.readlink(source))
+              elif source.is_file():
+                  shutil.copy2(source, destination)
+              else:
+                  raise RuntimeError(f"Missing upstream tracked source file: {relative}")
+
+          if missing:
+              pathspec = Path(os.environ["RUNNER_TEMP"]) / "coa-recovery-pathspec"
+              pathspec.write_bytes(b"\0".join(missing) + b"\0")
+              env = dict(os.environ, GIT_LITERAL_PATHSPECS="1")
+              subprocess.run(
+                  ["git", "add", "-f", f"--pathspec-from-file={pathspec}", "--pathspec-file-nul"],
+                  check=True, env=env
+              )
+
+          staged = set(subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0"))
+          still_missing = [path for path in required if path not in staged]
+          if still_missing:
+              raise RuntimeError(
+                  f"{len(still_missing)} upstream tracked files missing after recovery: "
+                  + ", ".join(os.fsdecode(p) for p in still_missing[:10])
+              )
+          print(
+              f"Recovered {len(missing)} ignored upstream-tracked files. "
+              f"Validated {len(required)} required upstream files in the index.",
+              flush=True,
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(
+                  f"Recovered {len(missing)} missing tracked files; "
+                  f"validated {len(required)} expected source paths.\n"
+              )
+          PY
+
+          if git diff --cached --quiet; then
+            echo "No missing tracked files; source is complete."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Recover ignored files in the CoA Server Manager source snapshot"
+            git push origin HEAD:main
+          fi
+
       - name: Confirm source revision
         run: |
           echo "Target source: Corfirean/azerothcore-wotlk-coa@1c658cab46d5057a8972cebd84c840aa6fbc4a91"
