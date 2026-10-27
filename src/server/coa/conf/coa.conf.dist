@@ -4,18 +4,25 @@
 
 [worldserver]
 
+# Azeroth Forever: vanilla-world profile, CoA classes and class trainers remain enabled.
+# The default is true in the compiled Azeroth Forever server so existing installations
+# also start in vanilla mode if this new setting has not yet been added to the active config.
+# Setting this to 0 is for controlled backwards-compatibility testing only.
+AzerothForever.VanillaMode = 1
+
+
 # Enable the compatibility packet filter.
 CoA.Enable = 1
 
 # One press of /s .rotation attempts one learned attack or heal on the selected target.
 # Uses CoA specialization priorities with a basic fallback for other builds.
-CoA.RotationAssist.Enable = 1
+CoA.RotationAssist.Enable = 0
 
 # Maximum crafted-item upgrade steps: 0 disables upgrade kits, 1 allows Refined,
 # 2 allows Superior, and 3 allows Masterwork. Default: 2. Values are clamped to 0-3.
 # Applies on startup and config reload; existing upgraded items remain unchanged.
 # Shirts, bags/quivers, Arclight Spanner and excluded ambiguous families cannot be upgraded.
-CoA.Crafting.MaxUpgradeSteps = 2
+CoA.Crafting.MaxUpgradeSteps = 0
 
 # Apply the Ascension protocol settings to remote connections as well as loopback
 # (extension opcodes, ping interval, spell-modifier layout, class-10 mapping).
@@ -36,7 +43,7 @@ CoA.ProbeRelay.Enable = 0
 CoA.ProbeRelay.AccountPrefix = "COALAB"
 
 # Log each consumed extension packet during protocol discovery.
-CoA.LogConsumedPackets = 1
+CoA.LogConsumedPackets = 0
 
 # Ascension character screen: enable/disable (activate/deactivate) and the
 # per-account character list sort order.
@@ -50,14 +57,14 @@ CoA.CharacterSelectionEnable = 1
 CoA.CharacterSelectionMaxActive = 128
 
 # Automatically add appearance and vanity entries for items obtained by a character.
-CoA.AutoCollectAppearances = 1
+CoA.AutoCollectAppearances = 0
 
 # Drop at most one wearable item matching an enemy's visible equipment on a rewarded kill.
 # Uses NPC display presets or CreatureDisplayInfoExtra, plus the current weapon/shield entries.
 # Only unbound/BoE gear up to uncommon quality, at or below the enemy's level, is eligible.
 # Stats prefer caster Intellect, defender defenses/Stamina or physical Strength/Agility.
 # The per-kill percentage is a local reconstruction default; original rates were not captured.
-CoA.EquippedGearLoot = 1
+CoA.EquippedGearLoot = 0
 CoA.EquippedGearLootChance = 5
 
 # Health and damage multipliers for regular-difficulty creatures, tuned to live Ascension readings.
@@ -75,7 +82,7 @@ CoA.EquippedGearLootChance = 5
 # Raid and Map* values below are then neutral (1.0) for them, so they never stack on its combat budget (tune that with
 # CoAContentScaling.Difficulty.Health.* instead). World values and servers without the module are not affected.
 # Without this section the server keeps these multipliers but leaves the feature disabled.
-CoA.CreatureScaling.Enable = 1
+CoA.CreatureScaling.Enable = 0
 CoA.CreatureScaling.World.Health = "1.17 + 0.013 * level"
 CoA.CreatureScaling.Dungeon.Health = 2.5
 CoA.CreatureScaling.Raid.Health = 2.2
@@ -107,7 +114,7 @@ CoA.CreatureScaling.MapSpellDamage = ""
 # PerPercent is a reconstruction choice, not a verified live value.
 # 1 - enabled (default).
 # 0 - native resistance, including the hidden level-difference term and the Classic+ resist table.
-CoA.MonsterResistance.Enable = 1
+CoA.MonsterResistance.Enable = 0
 CoA.MonsterResistance.PerLevel = 1.0
 CoA.MonsterResistance.PerPercent = 5.0
 CoA.MonsterResistance.MaxReductionPct = 75.0
@@ -125,12 +132,12 @@ CoA.RandomBotAccountPrefix = "rndbot"
 # Solo-server convenience: unlock the complete local appearance catalog. The
 # per-category value balances the initial snapshot; remaining appearances are
 # streamed afterward to stay below the legacy client's 64 KiB packet limit.
-CoA.UnlockLocalAppearanceCatalog = 1
+CoA.UnlockLocalAppearanceCatalog = 0
 CoA.AppearanceCatalogPerCategory = 500
 
 # Solo-server convenience: expose every static VanityCollection entry as account-owned.
 # Custom Ascension-only entries still require matching server item/spell templates to deliver.
-CoA.UnlockAllVanity = 1
+CoA.UnlockAllVanity = 0
 
 # Vanity items every account owns from its first login, as space-separated item ids. They are
 # recorded in the account's collection, so they stay owned with CoA.UnlockAllVanity = 0, and
@@ -142,15 +149,15 @@ CoA.StarterVanityItems = ""
 
 # If a vanity item has no server item template but its DBC row names a valid spell,
 # learn that spell directly when delivery is requested.
-CoA.AllowLearnedSpellDelivery = 1
+CoA.AllowLearnedSpellDelivery = 0
 
 # Teach owned Vanity mount/companion spells permanently, in small login batches.
 # Ownership remains unchanged. Entries without a local spell are not invented.
-CoA.LearnOwnedCompanions = 1
+CoA.LearnOwnedCompanions = 0
 
 # Solo-server convenience: all riding ranks (300/300) and Cold Weather Flying
 # from the first login, including level-one characters. No profession grants.
-CoA.MaxRidingFromStart = 1
+CoA.MaxRidingFromStart = 0
 
 # Mount flight rules.
 # 0 - Players fly with Expert Riding or better in Outland, and in Northrend once they know Cold
@@ -175,14 +182,14 @@ CoA.RulesetLoginDefault = 1
 # War Mode (1004119 without PvE Mode) and High-Risk (1004019) switch creature, chest and quest level
 # scaling off in the open world, as their tooltips state: "Level scaling is disabled while in War
 # Mode / High-Risk". Instances keep the character's own choice. Set to 0 to let the rulesets scale.
-CoA.Ruleset.DisableLevelScaling = 1
+CoA.Ruleset.DisableLevelScaling = 0
 
 # Quests with a row in the client's QuestTemplateScaling.dbc trail the character: the row's highest
 # point at or below the character's level sets the quest to that level plus its offset (the shipped
 # rows trail by 4 to 1 levels), held within the row's minimum and maximum level and never below the
 # quest's own level. Experience is priced at that level, and money by its tier's ratio between that
 # level and the quest's own. Quests without a row keep their authored level.
-CoA.QuestLevelScaling = 1
+CoA.QuestLevelScaling = 0
 
 # Mark a quest on its curve with the client's scaling flag (0x01000000), which colours it "standard"
 # instead of by level. Live quest caches never carried the flag.
@@ -194,7 +201,7 @@ CoA.QuestLevelScaling.ClientFlag = 0
 # an item level are left as they are.
 # Set to 0 to stop new lifts; copies already handed out keep working. While native item scaling
 # (CoA.ItemScaling.Native) is active no new copies are made either.
-CoA.ItemScaling = 1
+CoA.ItemScaling = 0
 
 # Weapons and armor that the client's ItemStat.dbc has a level ladder for keep their own entry and are
 # given a scaling level instead of a copy: the looter's level plus LootLevelOffset, from 1 to 65, set
@@ -205,7 +212,7 @@ CoA.ItemScaling = 1
 # Worldforged items and items the copy path never lifts stay as they are. While it is active the copy
 # path (CoA.ItemScaling) makes no new copies at all; copies already handed out keep working.
 # Read at startup only. With 0, items keep their authored stats and the copy path handles them again.
-CoA.ItemScaling.Native = 1
+CoA.ItemScaling.Native = 0
 CoA.ItemScaling.Native.LootLevelOffset = 0
 CoA.ItemScaling.Native.QuestRewards = 1
 
@@ -454,7 +461,7 @@ HighRisk.FelCommutation.ClickToggle = 0
 #        Default:     1 - (Enabled)
 #                     0 - (Disabled)
 
-PvpPower.Enable = 1
+PvpPower.Enable = 0
 
 #    PvePower.Enable
 #        Description: PvE Power on equipped items (the value in ItemAddon.dbc, else the item's "PvE Power
@@ -464,7 +471,7 @@ PvpPower.Enable = 1
 #        Default:     1 - (Enabled)
 #                     0 - (Disabled)
 
-PvePower.Enable = 1
+PvePower.Enable = 0
 
 #    Bloodforged.Enable
 #        Description: Adds one independent Bloodforged roll to eligible open-world creature corpses
@@ -614,7 +621,7 @@ Ascension.CallboardCache.GoldMax = 15
 #                     For test realms; switch it off on a live realm.
 #        Default:     1
 
-CoA.DungeonTuning.Enable = 1
+CoA.DungeonTuning.Enable = 0
 
 #
 #    CoA.DungeonNormal.Enable
@@ -650,7 +657,7 @@ CoA.DungeonNormal.TargetHitCapPct = 40
 #                     .testzone; making a zone a test zone is always announced. 0 turns the reminder off.
 #        Default:     15
 
-CoA.TestZoneBonus.AnnounceIntervalMinutes = 15
+CoA.TestZoneBonus.AnnounceIntervalMinutes = 0
 
 CrowsCache.Enable = 0
 CrowsCache.IntervalSeconds = 10800
