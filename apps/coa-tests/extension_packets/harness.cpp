@@ -144,9 +144,6 @@ SpellMgr* sSpellMgr = &spellMgr;
 struct Item
 {
     uint32 Entry = 0;
-    bool Bound = false;
-
-    void SetBinding(bool bound) { Bound = bound; }
 };
 
 using ItemPosCountVec = std::vector<uint32>;
@@ -977,7 +974,6 @@ struct Delivery
     uint32 EquipErrors = 0;
     uint32 NewItemNotices = 0;
     std::vector<uint32> Reported;
-    std::size_t Unbound = 0;
 
     bool operator==(Delivery const&) const = default;
 };
@@ -1016,9 +1012,7 @@ Delivery Deliver(VanitySetup const& setup, std::vector<WorldPacket> const& reque
     for (auto const& [event, value] : scriptMgr.Progress)
         if (event == CoAProgressEvent::VanityDelivered)
             reported.push_back(value);
-    std::size_t const unbound = std::ranges::count(player.Items, false, &Item::Bound);
-    return {player.Stored, player.Learned, session.Messages, player.EquipErrors, player.NewItemNotices, reported,
-        unbound};
+    return {player.Stored, player.Learned, session.Messages, player.EquipErrors, player.NewItemNotices, reported};
 }
 
 void TestVanityDelivery()
@@ -1058,7 +1052,6 @@ void TestVanityDelivery()
     Check(owned.Reported == std::vector<uint32>{1001} && bank.Reported == std::vector<uint32>{134985} &&
         spell.Reported == std::vector<uint32>{1003},
         "each delivered vanity item or spell is reported once as progress");
-    Check(owned.Unbound == 0 && bank.Unbound == 0, "delivered vanity items arrive soulbound");
 
     constexpr uint32 altar = 2903513;
     objectMgr.Items[altar].ItemId = altar;

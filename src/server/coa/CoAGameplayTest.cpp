@@ -2912,11 +2912,7 @@ private:
         if (metric == "combat")
             return unit->IsInCombat();
         if (metric == "can_attack")
-        {
-            auto spell = step.get_optional<uint32>("spell");
-            return unit->IsValidAttackTarget(GetUnit(step.get<std::string>("target")),
-                spell ? sSpellMgr->GetSpellInfo(*spell) : nullptr);
-        }
+            return unit->IsValidAttackTarget(GetUnit(step.get<std::string>("target")));
         if (metric == "channel_object_entry")
         {
             ObjectGuid const channelObject = unit->GetGuidValue(UNIT_FIELD_CHANNEL_OBJECT);
@@ -3196,21 +3192,6 @@ private:
         }
         if (metric == "distance")
             return unit->GetExactDist2d(GetUnit(step.get<std::string>("target")));
-        if (metric == "threat_per_damage")
-        {
-            Creature* creature = unit->ToCreature();
-            Require(creature != nullptr, "Threat metric needs a creature actor");
-            uint32 const taken = creature->GetMaxHealth() - creature->GetHealth();
-            if (!taken)
-                return 0.0f;
-            return creature->GetThreatMgr().GetThreat(GetUnit(step.get<std::string>("target"))) / float(taken);
-        }
-        if (metric == "threat")
-        {
-            Creature* creature = unit->ToCreature();
-            Require(creature != nullptr, "Threat metric needs a creature actor");
-            return creature->GetThreatMgr().GetThreat(GetUnit(step.get<std::string>("target")));
-        }
         if (metric == "spell_cast_count")
         {
             Require(sSpellMgr->GetSpellInfo(spell) != nullptr, "Unknown spell in metric");
@@ -3686,34 +3667,6 @@ private:
             Require(creature != nullptr, "Creature health metric needs a living nearby creature");
             return 100.0 * creature->GetHealth() / creature->GetMaxHealth();
         }
-        if (metric == "nearby_creature_can_attack")
-        {
-            Creature* creature = player->FindNearestCreature(step.get<uint32>("entry"), 60.0f, true);
-            Require(creature != nullptr, "Creature attack metric needs a living nearby creature");
-            return player->IsValidAttackTarget(creature) ? 1 : 0;
-        }
-        if (metric == "nearby_creature_mount_display")
-        {
-            Creature* creature = player->FindNearestCreature(step.get<uint32>("entry"), 60.0f, true);
-            Require(creature != nullptr, "Creature mount metric needs a living nearby creature");
-            return creature->GetMountID();
-        }
-        if (metric == "nearby_creature_display")
-        {
-            Creature* creature = player->FindNearestCreature(step.get<uint32>("entry"), 60.0f, true);
-            Require(creature != nullptr, "Creature display metric needs a living nearby creature");
-            return creature->GetDisplayId();
-        }
-        if (metric == "nearby_creature_aura_count")
-        {
-            std::list<Creature*> creatures;
-            player->GetCreatureListWithEntryInGrid(creatures, step.get<uint32>("entry"), 60.0f);
-            uint32 const spell = step.get<uint32>("spell");
-            return std::count_if(creatures.begin(), creatures.end(), [spell](Creature const* creature)
-            {
-                return creature->IsAlive() && creature->HasAura(spell);
-            });
-        }
         if (metric == "nearby_creature_sent_spellclick")
         {
             Creature* creature = player->FindNearestCreature(step.get<uint32>("entry"), 60.0f, true);
@@ -4170,14 +4123,6 @@ private:
             SpellInfo const* info = sSpellMgr->GetSpellInfo(spell);
             Require(info != nullptr, "Unknown spell for power cost");
             return info->CalcPowerCost(player, info->GetSchoolMask());
-        }
-        if (metric == "skill_line_for_spell")
-        {
-            auto const bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spell);
-            for (auto itr = bounds.first; itr != bounds.second; ++itr)
-                if (itr->second->SkillLine)
-                    return itr->second->SkillLine;
-            return -1;
         }
         if (metric == "has_talent")
         {
@@ -6484,10 +6429,17 @@ private:
             player->SendLoot(objects.front()->GetGUID(), LOOT_SKINNING);
             Require(player->GetLootGUID() == objects.front()->GetGUID(), "The chest did not open its loot");
         }
-        else if (action == "add_item")
-            Require(player->AddItem(step.get<uint32>("item"), step.get<uint32>("count", 1)), "Item grant failed");
-        else if (action == "set_item_random_property")
+        else if (action == "add_item" || action == "set_item_random_property")
         {
+            if (action == "add_item")
+            {
+                Require(!step.get_optional<int32>("property") ||
+                    (step.get<uint32>("count", 1) == 1 && !player->GetItemByEntry(step.get<uint32>("item"))),
+                    "Affixed item grant requires one new item");
+                Require(player->AddItem(step.get<uint32>("item"), step.get<uint32>("count", 1)), "Item grant failed");
+                if (!step.get_optional<int32>("property"))
+                    return;
+            }
             Item* item = player->GetItemByEntry(step.get<uint32>("item"));
             Require(item != nullptr && !item->IsEquipped(), "Random property fixture requires an unequipped item");
             item->SetInt32Value(ITEM_FIELD_RANDOM_PROPERTIES_ID, 0);
@@ -6517,6 +6469,22 @@ private:
                 "The bags could not be filled for the full inventory fixture");
             LOG_DEBUG("coa", "gameplay test filled {} bag slots for {}",
                 filled, player->GetGUID().ToString());
+        }
+        else if (action == "unequip")
+        {
+            Item* item = player->GetItemByEntry(step.get<uint32>("item"));
+            Require(item != nullptr, "Item must be granted before unequipping");
+            if (item->IsEquipped())
+            {
+                Require(player->CanUnequipItem(item->GetPos(), false) == EQUIP_ERR_OK,
+                    "Item cannot be unequipped");
+                ItemPosCountVec destinations;
+                Require(player->CanStoreItem(NULL_BAG, NULL_SLOT, destinations, item, false) == EQUIP_ERR_OK
+                    && destinations.size() == 1, "Unequipped item requires a free bag slot");
+                player->SwapItem(item->GetPos(), destinations.front().pos);
+            }
+            Require(!item->IsEquipped() && player->IsInventoryPos(item->GetPos()),
+                "Unequipped item did not reach inventory");
         }
         else if (action == "equip")
         {

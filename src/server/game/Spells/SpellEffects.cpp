@@ -3661,10 +3661,7 @@ void Spell::EffectEnchantItemTmp(SpellEffIndex effIndex)
     // Rockbiter Weapon apply to both weapon
     if (!itemTarget)
         return;
-    // The hardcoded damage-to-enchant table below only covers the stock ranks (ids below 100000);
-    // GetSpellTwinSource() answers its own id for any spell that is not a registered twin, so a custom spell
-    // sharing this family and flag would wrongly take this branch and leave its own enchant (Effects[effIndex].MiscValue) unapplied.
-    if (m_spellInfo->Id < 100000 && m_spellInfo->SpellFamilyName == SPELLFAMILY_SHAMAN && m_spellInfo->SpellFamilyFlags[0] & 0x400000 &&
+    if (m_spellInfo->SpellFamilyName == SPELLFAMILY_SHAMAN && m_spellInfo->SpellFamilyFlags[0] & 0x400000 &&
         sSpellMgr->GetSpellTwinSource(m_spellInfo->Id) == m_spellInfo->Id)
     {
         uint32 spell_id = 0;
@@ -3703,8 +3700,25 @@ void Spell::EffectEnchantItemTmp(SpellEffIndex effIndex)
                 spell_id = 36760;
                 break;               // 20%
             default:
-                LOG_ERROR("spells.effect", "Spell::EffectEnchantItemTmp: Damage {} not handled in S'RW", damage);
-                return;
+                // CoA/custom ranks use DPS outside the vanilla 2..11 table. The old
+                // `return` left the weapon unenchanted, so bots recast until they OOM.
+                if (damage <= 3)
+                    spell_id = 36744;
+                else if (damage <= 4)
+                    spell_id = 36753;
+                else if (damage <= 5)
+                    spell_id = 36751;
+                else if (damage <= 6)
+                    spell_id = 36754;
+                else if (damage <= 7)
+                    spell_id = 36755;
+                else if (damage <= 9)
+                    spell_id = 36761;
+                else if (damage == 10)
+                    spell_id = 36758;
+                else
+                    spell_id = 36760;
+                break;
         }
 
         SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(spell_id);
@@ -6791,8 +6805,6 @@ void Spell::SummonGuardian(uint32 i, uint32 entry, SummonPropertiesEntry const* 
         {
             ((Guardian*)summon)->InitStatsForLevel(summonLevel);
         }
-
-        sScriptMgr->OnGuardianSummoned(this, summon);
 
         // xinef: if we have more than one guardian, change follow angle
         if (summon->HasUnitTypeMask(UNIT_MASK_MINION) && totalNumGuardians > 1)

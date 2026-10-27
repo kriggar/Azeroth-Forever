@@ -25,15 +25,19 @@ def constant(source, name):
 
 
 def compile_and_run(code, prefix):
-    compiler = shutil.which(os.environ.get("CXX", "g++"))
+    compiler = shutil.which(os.environ.get("CXX") or ("cl" if os.name == "nt" else "g++"))
     if not compiler:
         raise RuntimeError("Set CXX to a C++20 compiler.")
     with tempfile.TemporaryDirectory(prefix=prefix) as directory:
         out = Path(directory)
         cpp, executable = out / "cases.cpp", out / "cases.exe"
         cpp.write_text(code, encoding="utf-8")
-        subprocess.run([compiler, "-std=c++20", "-Wall", "-Wextra", "-Werror", str(cpp), "-o", str(executable)],
-                       cwd=out, check=True, timeout=60)
+        if Path(compiler).stem.lower() == "cl":
+            command = [compiler, "/nologo", "/std:c++20", "/EHsc", "/utf-8", "/W4", "/WX", str(cpp),
+                       f"/Fe:{executable}"]
+        else:
+            command = [compiler, "-std=c++20", "-Wall", "-Wextra", "-Werror", str(cpp), "-o", str(executable)]
+        subprocess.run(command, cwd=out, check=True, timeout=60)
         subprocess.run([str(executable)], cwd=out, check=True, timeout=15)
 
 
@@ -176,7 +180,7 @@ struct ChatHandler
 enum InventoryResult { EQUIP_ERR_OK, EQUIP_ERR_INVENTORY_FULL };
 using ItemPosCountVec=std::vector<int>;
 constexpr uint8 NULL_BAG=0, NULL_SLOT=255;
-struct Item { uint32 entry; bool bound=false; void SetBinding(bool value) { bound=value; } };
+struct Item { uint32 entry; };
 struct Player
 {
     Session session; uint8 cls=10, race=1; bool full=false;
@@ -205,15 +209,15 @@ struct PlayerCollectionState { std::unordered_set<uint32> OwnedVanityItems; };
 struct Cosmetics
 {
     std::unordered_map<uint32, VanityInfo> _vanityItems;
-    std::shared_ptr<PlayerCollectionState> state=std::make_shared<PlayerCollectionState>();
+    std::shared_ptr<PlayerCollectionState> collectionState=std::make_shared<PlayerCollectionState>();
     std::vector<std::pair<uint32, bool>> collected; std::vector<uint32> delivered; uint32 rejected=0;
-    std::shared_ptr<PlayerCollectionState> GetState(Player*) { return state; }
+    std::shared_ptr<PlayerCollectionState> GetState(Player*) { return collectionState; }
     static bool IsWithheldVanityItem(uint32 itemId) { return itemId==700; }
     static bool IsBankVanityItem(uint32 itemId) { return itemId==800; }
     void RejectClientPacket(uint32 account, WorldPacket const&, std::string_view) { assert(account==9); ++rejected; }
     void DeliverVanityItem(Player*, uint32 itemId) { delivered.push_back(itemId); }
     void CollectItem(Player*, PlayerCollectionState& owner, uint32 itemId, bool notify, bool bound)
-    { assert(&owner==state.get() && notify); collected.emplace_back(itemId, bound); }
+    { assert(&owner==collectionState.get() && notify); collected.emplace_back(itemId, bound); }
 """
     for signature in ("void HandlePointSpendRequest(Player* player, WorldPacket& packet)",
                       "[[nodiscard]] static bool IsVanityItemOffered(Player* player, VanityInfo const& vanity)",
@@ -248,7 +252,7 @@ struct Case
 int main()
 {
     { Case c; c.Buy(MOUNT); assert(c.Tokens()==65 && c.cosmetics.collected==(std::vector<std::pair<uint32, bool>>{{MOUNT, true}})); assert(c.Said().empty()); }
-    { Case c; c.cosmetics.state->OwnedVanityItems.insert(MOUNT); c.Buy(MOUNT); assert(c.Tokens()==100 && c.cosmetics.collected.empty() && c.Said()=="You already own this item."); }
+    { Case c; c.cosmetics.collectionState->OwnedVanityItems.insert(MOUNT); c.Buy(MOUNT); assert(c.Tokens()==100 && c.cosmetics.collected.empty() && c.Said()=="You already own this item."); }
     { Case c; c.player.bags[TOKEN]=34; c.Buy(MOUNT); assert(c.Tokens()==34 && c.cosmetics.collected.empty() && c.Said()=="You do not have enough Bazaar Tokens."); }
     { Case c; c.Buy(FREE); assert(c.Tokens()==100 && c.Said()=="That item cannot be bought with Bazaar Tokens."); }
     for (uint32 item : {SEASONAL, ONLY_CLASS_9, 700u, 999u})
@@ -264,8 +268,8 @@ int main()
         ascensionCompatConfig.unlockAll=false;
     }
     {
-        Case c; c.cosmetics.state->OwnedVanityItems.insert(SCROLL);
-        c.Buy(SCROLL); assert(c.player.bags[SCROLL]==1 && c.Tokens()==40 && c.player.announced==1 && c.player.created.back().bound);
+        Case c; c.cosmetics.collectionState->OwnedVanityItems.insert(SCROLL);
+        c.Buy(SCROLL); assert(c.player.bags[SCROLL]==1 && c.Tokens()==40 && c.player.announced==1);
         c.Buy(SCROLL); assert(c.player.bags[SCROLL]==1 && c.Tokens()==40 && c.Said()=="You do not have enough Bazaar Tokens.");
         assert(c.cosmetics.collected.empty());
     }
@@ -278,7 +282,7 @@ int main()
 }
 """
     compile_and_run(code, "coa-vanity-purchase-")
-    print("PASS: token purchases, ownership, price, offer gates, unlock-all, repeatable soulbound consumables, "
+    print("PASS: token purchases, ownership, price, offer gates, unlock-all, repeatable consumables, "
           "full bags, other currencies, malformed requests, the collection-added event and the price stream")
 
 

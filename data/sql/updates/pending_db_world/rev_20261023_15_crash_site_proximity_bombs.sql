@@ -20,9 +20,9 @@
 -- (9999495, 9999496) on the eastern crater floor. Every editor value is kept verbatim; the ADT ground is
 -- only the reference the review started from. Respawn is 180 s; the template cooldown (30 s) only matters
 -- for a trap that survives its cast, and type 1 despawns.
-DELETE FROM `gameobject` WHERE `guid` IN (7914100, 7914101, 7914102, 7914103, 7914104, 7914105, 9999495, 9999496);
 -- The preserved sighting sat 0.50 above the same ground; the world-editor review seated it and set the spawn.
 UPDATE `gameobject` SET `position_x` = -6207.2263, `position_y` = 739.6190, `position_z` = 381.0538, `orientation` = 0, `rotation0` = 0, `rotation1` = 0, `rotation2` = 0, `rotation3` = 1, `spawntimesecs` = 180, `Comment` = 'CoA Radiance: SOURCED-ATLAS sighting on the goblin Crash Site (area 10201) crater floor between the plating and the crate, refined in the world editor (#8727)' WHERE `guid` = 7914005;
+DELETE FROM `gameobject` WHERE `guid` IN (7914100, 7914101, 7914102, 7914103, 7914104, 7914105, 9999495, 9999496);
 INSERT INTO `gameobject` (`guid`, `id`, `map`, `zoneId`, `areaId`, `spawnMask`, `phaseMask`, `position_x`, `position_y`, `position_z`, `orientation`, `rotation0`, `rotation1`, `rotation2`, `rotation3`, `spawntimesecs`, `animprogress`, `state`, `ScriptName`, `Comment`)
 VALUES
 (7914100, 2300506, 0, 0, 0, 1, 1, -6210.2634, 727.6530, 383.1158, 0, 0, 0, 0, 1, 180, 100, 1, '', 'CoA Radiance: Proximity Bomb between the plating (7914001) and the crate (7914002), west of the direct line; position from the world-editor review (#8727)'),

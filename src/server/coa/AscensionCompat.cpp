@@ -4,17 +4,22 @@
  * https://github.com/azerothcore/azerothcore-wotlk/blob/master/LICENSE-AGPL3
  */
 
+#include "AscensionClassServiceBridge.h"
 #include "AccountMgr.h"
+#include "CoaCustomRacials.h"
+
 #include "AscensionAccountProgress.h"
 #include "AscensionFelsworn.h"
 #include "AscensionHighRiskPolicy.h"
 #include "AscensionItemScaling.h"
+#include "AscensionFelswornRifts.h"
 #include "AscensionPyromancer.h"
 #include "AscensionCultist.h"
 #include "AscensionVenomancer.h"
 #include "AscensionTinker.h"
 #include "AscensionSunCleric.h"
 #include "AscensionXoroth.h"
+#include "AscensionNecromancer.h"
 #include "AllCreatureScript.h"
 #include "AllItemScript.h"
 #include "AllSpellScript.h"
@@ -37,6 +42,9 @@
 #include "AscensionCollectionModelData.h"
 #include "MountDisplayFallback.h"
 #include "AscensionWitchHunterCompletion.h"
+#include "AscensionIncarnation.h"
+#include "SpellAuraEffects.h"
+#include "Pet.h"
 #include "AscensionAmmunitionData.h"
 #include "AscensionAverageItemLevel.h"
 #include "AscensionPersonalBank.h"
@@ -67,6 +75,7 @@
 #include "AscensionBloodmageHemoglobe.h"
 #include "AscensionReaperPainmail.h"
 #include "AscensionReaperScytheRush.h"
+#include "AscensionResourceQuery.h"
 #include "AscensionVenomancerCatalyst.h"
 #include "AscensionSpecialization.h"
 #include "AscensionSpellProgressionData.h"
@@ -100,6 +109,7 @@
 #include "Map.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
+#include "Trainer.h"
 #include "Opcodes.h"
 #include "Pet.h"
 #include "Player.h"
@@ -396,7 +406,6 @@ constexpr std::array<std::pair<uint32, uint32>, 1> REAPER_ONE_SOUL_CONSUMERS =
 constexpr std::size_t APPEARANCE_CATEGORY_COUNT = 69;
 constexpr uint32 APPEARANCE_CATEGORY_AMMUNITION = 32;
 constexpr uint32 APPEARANCE_CATEGORY_SHADOWHOUND = 68;
-constexpr uint32 APPEARANCE_CATEGORY_NECROMANCER_LICH_FORM = 67;
 constexpr uint32 APPEARANCE_CATEGORY_TAMED_BEAST = 33;
 constexpr uint32 TAME_BEAST_SPELL = 1515;
 constexpr std::array<uint32, 3> CALL_PET_SPELLS = { 883, 574302, 1100883 };
@@ -485,9 +494,12 @@ public:
   AscensionCompatConfigData()
       : ConfigValueCache(AscensionCompatConfig::NUM_CONFIGS) {}
 
+  bool IsEnabled() const { return _enabled; }
+
   void BuildConfigCache() override {
     SetConfigValue<bool>(AscensionCompatConfig::ENABLED,
                          "CoA.Enable", true);
+    _enabled = GetConfigValue<bool>(AscensionCompatConfig::ENABLED);
     SetConfigValue<bool>(AscensionCompatConfig::LOG_CONSUMED_PACKETS,
                          "CoA.LogConsumedPackets", true);
     SetConfigValue<uint32>(AscensionCompatConfig::FIRST_EXTENSION_OPCODE,
@@ -532,6 +544,8 @@ public:
     SetConfigValue<std::string>(AscensionCompatConfig::CLIENT_DBC_DIRECTORY,
                                 "CoA.ClientDbcDirectory", "");
   }
+private:
+  bool _enabled = false;
 };
 
 AscensionCompatConfigData ascensionCompatConfig;
@@ -590,8 +604,6 @@ struct AppearanceInfo {
 
 constexpr uint32 INCARNATION_KIND_FORM = 1;
 constexpr uint32 INCARNATION_KIND_CREATURE = 2;
-constexpr uint32 INCARNATION_KIND_HIDDEN_FORM = 4;
-constexpr ShapeshiftForm FORM_NECROMANCER_LICH = ShapeshiftForm(50);
 
 struct IncarnationCategory {
   uint32 Kind = 0;
@@ -688,6 +700,22 @@ bool IsAscensionCustomClass(Player const *player) {
   return playerClass >= CLASS_BARBARIAN && playerClass <= CLASS_SPIRIT_MAGE;
 }
 
+bool UnifiedClassAdvancement() {
+  static bool const unified = [] {
+    AscensionFreepick::Realm const classRealm = AscensionFreepick::ReadRealm();
+    return classRealm.ConquestOfAzeroth && classRealm.WarcraftReborn;
+  }();
+  return unified;
+}
+
+bool IsCharacterAdvancementClass(Player const *player) {
+  if (IsAscensionCustomClass(player))
+    return true;
+  uint8 const playerClass = player->getClass();
+  return UnifiedClassAdvancement() && playerClass >= CLASS_WARRIOR && playerClass <= CLASS_DRUID &&
+         playerClass != CLASS_HERO;
+}
+
 bool ReceivesClientRequests(Player const *player) {
   return !player->GetSession()->IsBot();
 }
@@ -761,23 +789,19 @@ std::vector<uint32> GetAscensionRacialSpells(Player const* player)
                 if (AscensionRacialAbilities::CanLearn(*ability, player->getRace(), player->getClass()))
                     spells.push_back(ability->Spell);
 
+    if (sConfigMgr->GetOption<bool>("CoACustomRaces.Enable", false))
+        if (CoaCustomRacial const* custom = GetCoaCustomRacial(player->getRace()))
+            for (uint32 spell : custom->Spells)
+                if (spell)
+                    spells.push_back(spell);
+
     std::sort(spells.begin(), spells.end());
     spells.erase(std::unique(spells.begin(), spells.end()), spells.end());
     return spells;
 }
 
-struct FelswornRiftGrant
-{
-    uint32 SpellId;
-    uint8 RequiredLevel;
-};
-
-constexpr std::array<FelswornRiftGrant, 3> FelswornHordeCapitalRifts =
-{{
-    {535598, 26},
-    {535599, 30},
-    {535600, 36}
-}};
+using AscensionCompatData::FelswornRiftGrant;
+using AscensionCompatData::FelswornHordeCapitalRifts;
 
 bool CanGrantAscensionRacialSpell(Player const* player, uint32 spellId)
 {
@@ -838,7 +862,11 @@ public:
 
   uint32 SynchronizeProgression(Player *player, bool explicitRequest = false) {
     if (!IsAscensionCustomClass(player))
-      return 0;
+    {
+      if (!IsCharacterAdvancementClass(player))
+        return 0;
+      return SynchronizeAutomaticTalents(player, GetActiveSpecialization(player));
+    }
 
     StorePurchasedRanks(player);
 
@@ -1194,6 +1222,7 @@ public:
 
     uint32 learned = 0;
     uint32 removed = 0;
+    std::string changedSpells;
     for (AscensionCompatData::ProficiencyDefinition const &definition :
          AscensionCompatData::ProficiencyDefinitions) {
       bool const allowed = isAllowed(definition.SpellId);
@@ -1228,6 +1257,8 @@ public:
       {
         player->removeSpell(definition.SpellId, SPEC_MASK_ALL, false);
         ++removed;
+        changedSpells += Acore::StringFormat(" -{}{}", definition.SpellId,
+                                             player->HasSpell(definition.SpellId) ? "(still known)" : "");
       }
       if (player->HasSkill(definition.SkillId))
         player->SetSkill(definition.SkillId, 0, 0, 0);
@@ -1250,9 +1281,9 @@ public:
     {
       LOG_INFO("coa",
                "Synchronized proficiencies for {} (class {}, level {}): "
-               "learned {}, removed {}",
+               "learned {}, removed {}{}",
                player->GetName(), uint32(player->getClass()),
-               uint32(player->GetLevel()), learned, removed);
+               uint32(player->GetLevel()), learned, removed, changedSpells);
     }
   }
 
@@ -1500,11 +1531,12 @@ public:
   }
 
   void OnPlayerLogin(Player *player) {
-    if (!IsAscensionCustomClass(player))
+    if (!IsCharacterAdvancementClass(player))
     {
       QueueCharacterAdvancementState(player);
       return;
     }
+    bool const customClass = IsAscensionCustomClass(player);
 
     uint32 const specializationId = player->GetPlayerSetting(ASCENSION_ACTIVE_SPEC_SETTING, 0).value;
     if (specializationId)
@@ -1517,9 +1549,14 @@ public:
         stored && stored->size() > 1 && (*stored)[0].value && (*stored)[1].value != player->getClass())
       ClearSlots(player);
     player->learnSpell(AscensionWildcard::SPECIALIZATION_SWAP_SPELLS[0]);
-    SynchronizeProgression(player);
-    SynchronizeProficiencies(player);
-    RepairStarterKit(player, false);
+    if (customClass)
+    {
+      SynchronizeProgression(player);
+      SynchronizeProficiencies(player);
+      RepairStarterKit(player, false);
+    }
+    else
+      SynchronizeProgression(player);
     QueueCharacterAdvancementState(player);
 
     CharacterDatabasePreparedStatement* actionsStmt =
@@ -1724,7 +1761,7 @@ public:
     WorldPacket packet(SMSG_CHARACTER_ADVANCEMENT_ACTIVE_SPEC, sizeof(uint32) * 2);
     bool const wildcard = AscensionWildcard::IsWildcardHero(player);
     packet << (wildcard ? AscensionWildcard::ActiveSpec(player) : ActiveSlot(player))
-           << uint32(wildcard || IsAscensionCustomClass(player) || AscensionFreepick::IsFreepickHero(player) ?
+           << uint32(wildcard || IsCharacterAdvancementClass(player) || AscensionFreepick::IsFreepickHero(player) ?
         AscensionWildcard::SPECIALIZATION_COUNT : 1);
     player->GetSession()->SendPacket(&packet);
 
@@ -2091,6 +2128,12 @@ public:
       }
       if (item.Rank && entry->SpecId && entry->SpecId != targetSpec)
       {
+        if (UnifiedClassAdvancement() && !IsAscensionCustomClass(player) && !entry->AECost && !entry->TECost &&
+            !GetSelectableFreeGroup(entry->EntryId) &&
+            std::none_of(AscensionCompatData::CoASpecializations.begin(), AscensionCompatData::CoASpecializations.end(),
+                [entry](AscensionCompatData::CoASpecialization const& specialization)
+                { return specialization.IdentityEntryId == entry->EntryId; }))
+          continue;
         refusal = { "CA_UPDATE_ENTRIES_BAD_ENTRY", "CA_LEARN_WRONG_CLASS", item.EntryId, item.Rank,
                     "The uploaded build includes an entry of another specialization." };
         return false;
@@ -2295,7 +2338,7 @@ public:
       _pendingTalentRequests.erase(itr);
     }
 
-    if (!IsAscensionCustomClass(player) && !AscensionWildcard::IsWildcardHero(player) &&
+    if (!IsCharacterAdvancementClass(player) && !AscensionWildcard::IsWildcardHero(player) &&
         !AscensionFreepick::HasFreepickBuild(player))
       return;
     for (TalentRequest const& request : requests)
@@ -2625,7 +2668,7 @@ public:
   bool SwitchSpecialization(Player* player, uint32 specializationId, std::string* refusal = nullptr,
                             bool restoreStoredBuild = true)
   {
-    if (!IsAscensionCustomClass(player) || (!specializationId && restoreStoredBuild))
+    if (!IsCharacterAdvancementClass(player) || (!specializationId && restoreStoredBuild))
       return false;
 
     bool validSpecialization = std::any_of(
@@ -2760,7 +2803,7 @@ public:
 
     void SaveSlot(Player* player)
     {
-        if (IsAscensionCustomClass(player) && !AscensionWildcard::IsWildcardHero(player))
+        if (IsCharacterAdvancementClass(player) && !AscensionWildcard::IsWildcardHero(player))
             StoreSlot(player, ActiveSlot(player), LiveSlot(player, GetActiveSpecialization(player)));
     }
 
@@ -2803,7 +2846,7 @@ public:
 
     bool SwitchSlot(Player* player, uint32 index, std::string& error)
     {
-        if (!IsAscensionCustomClass(player) || AscensionWildcard::IsWildcardHero(player) ||
+        if (!IsCharacterAdvancementClass(player) || AscensionWildcard::IsWildcardHero(player) ||
             index >= AscensionWildcard::SPECIALIZATION_COUNT ||
             !player->HasSpell(AscensionWildcard::SPECIALIZATION_SWAP_SPELLS[index]))
         {
@@ -3816,9 +3859,6 @@ private:
                 REAPER_ALL_SOUL_CONSUMERS.end(), spellId) !=
             REAPER_ALL_SOUL_CONSUMERS.end())
         {
-            if (WasAvoidedByEveryTarget(player, spell))
-                return;
-
             player->RemoveAurasDueToSpell(SPELL_REAPER_REAPED_SOUL);
             player->RemoveAurasDueToSpell(SPELL_REAPER_SOUL_INFUSION);
             if (requiresSoulInfusion)
@@ -5570,6 +5610,37 @@ private:
 
 class AscensionCollectionService {
 public:
+    static bool IsIncarnationCategory(uint32 category)
+    {
+        return (category >= 17 && category <= 31) || IsClassPetCategory(category) || (category >= 65 && category <= 68);
+    }
+
+    static bool IsClassPetCategory(uint32 category)
+    {
+        return category >= 33 && category <= 37;
+    }
+
+    uint32 GetIncarnationDisplay(Player const* player, uint32 category)
+    {
+        if (category >= APPEARANCE_CATEGORY_COUNT)
+            return 0;
+        std::shared_ptr<PlayerCollectionState> state = GetState(player);
+        if (!state)
+            return 0;
+        uint32 const appearanceId = state->ActiveAppearances[category];
+        if (!appearanceId)
+            return 0;
+        auto const itr = _incarnationDisplays.find(appearanceId);
+        if (itr != _incarnationDisplays.end())
+            return itr->second;
+        auto const creature = _incarnationCreatures.find(appearanceId);
+        if (creature != _incarnationCreatures.end())
+            if (CreatureTemplate const* creatureTemplate = sObjectMgr->GetCreatureTemplate(creature->second))
+                if (CreatureModel const* model = creatureTemplate->GetFirstValidModel())
+                    return model->CreatureDisplayID;
+        return 0;
+    }
+
     static bool IsCosmeticCategory(uint32 category)
     {
         return category >= 56 && category <= 58;
@@ -5618,13 +5689,10 @@ public:
     return instance;
   }
 
-  bool OwnsVanityItem(Player const* player, uint32 itemId) {
-    std::shared_ptr<PlayerCollectionState> state = GetState(player);
-    return state && state->OwnedVanityItems.contains(itemId);
-  }
-
   bool LoadClientData() {
     _appearances.clear();
+    _incarnationDisplays.clear();
+    _incarnationCreatures.clear();
     _itemAppearances.clear();
     _itemSetItems.clear();
     _vanityItems.clear();
@@ -5643,8 +5711,7 @@ public:
         uint64 const classMask = record.GetUInt32(23) | (uint64(record.GetUInt32(24)) << 32);
         if (categoryId < APPEARANCE_CATEGORY_COUNT && categoryId != APPEARANCE_CATEGORY_SHADOWHOUND && classMask &&
             record.GetString(1) == "APPEARANCE_TYPE_INCARNATION" &&
-            (kind == INCARNATION_KIND_FORM || kind == INCARNATION_KIND_CREATURE ||
-             kind == INCARNATION_KIND_HIDDEN_FORM))
+            (kind == INCARNATION_KIND_FORM || kind == INCARNATION_KIND_CREATURE))
           _incarnationCategories[categoryId] = IncarnationCategory{kind, record.GetUInt32(20), record.GetUInt32(21),
               classMask};
       }
@@ -5659,6 +5726,11 @@ public:
         continue;
 
       uint32 displayId = record.GetUInt32(3);
+      if (IsClassPetCategory(record.GetUInt32(5)))
+        _incarnationCreatures[appearanceId] = record.GetUInt32(3);
+      else if (IsIncarnationCategory(record.GetUInt32(5)) &&
+          sCreatureDisplayInfoStore.LookupEntry(record.GetUInt32(8)))
+        _incarnationDisplays[appearanceId] = record.GetUInt32(8);
       _appearances[appearanceId] =
           AppearanceInfo{displayId, record.GetUInt32(5), record.GetUInt32(6),
                          record.GetUInt32(7), displayId};
@@ -5851,12 +5923,21 @@ public:
     if (!state)
       state = LoadCollectionState(player);
 
+    // Socketless bots do not have an active client UI -- skip heavy appearance/wardrobe packet sync
+    if (player->GetSession() && player->GetSession()->IsSocketClosed())
+    {
+      std::lock_guard lock(_stateMutex);
+      _playerStates[player->GetGUID().GetCounter()] = state;
+      return;
+    }
+
     UnlockLocalAppearanceCatalog(player, *state);
 
     {
       std::lock_guard lock(_stateMutex);
       _playerStates[player->GetGUID().GetCounter()] = state;
     }
+    RefreshAscensionIncarnationDisplay(player);
 
     if (ascensionCompatConfig.GetConfigValue<bool>(
             AscensionCompatConfig::AUTO_COLLECT_APPEARANCES))
@@ -6441,13 +6522,7 @@ public:
     uint32 GetIncarnationFormDisplay(Player* player, ShapeshiftForm form)
     {
         AppearanceInfo const* appearance = GetActiveFormIncarnation(player, form);
-        if (appearance && appearance->CreatureDisplay)
-            return appearance->CreatureDisplay;
-
-        if (form == FORM_NECROMANCER_LICH && GetActiveIncarnation(player, APPEARANCE_CATEGORY_NECROMANCER_LICH_FORM))
-            return player->GetNativeDisplayId();
-
-        return 0;
+        return appearance ? appearance->CreatureDisplay : 0;
     }
 
     void RefreshIncarnationSpell(Player* player)
@@ -6567,7 +6642,6 @@ public:
 
       if (Item* delivered = player->StoreNewItem(destinations, itemId, true))
       {
-        delivered->SetBinding(true);
         player->SendNewItem(delivered, 1, true, false);
         sScriptMgr->OnPlayerCoAProgress(player, CoAProgressEvent::VanityDelivered, itemId);
       }
@@ -6610,12 +6684,14 @@ public:
       if (IsWithheldVanityItem(itemId))
         continue;
 
-      if (IsUnsummonableCompanion(itemId)) {
+      if (IsUnsummonableCompanion(itemId))
+      {
         ++unsummonable;
         continue;
       }
 
-      if (state->OwnedVanityItems.insert(itemId).second) {
+      if (state->OwnedVanityItems.insert(itemId).second)
+      {
         CharacterDatabasePreparedStatement *stmt =
             CharacterDatabase.GetPreparedStatement(CHAR_INS_ACCOUNT_VANITY_COLLECTION);
         stmt->SetData(0, state->AccountId);
@@ -6669,7 +6745,8 @@ public:
       if (!_vanityItems.contains(itemId))
         continue;
 
-      if (state->OwnedVanityItems.insert(itemId).second) {
+      if (state->OwnedVanityItems.insert(itemId).second)
+      {
         CharacterDatabasePreparedStatement *stmt =
             CharacterDatabase.GetPreparedStatement(CHAR_INS_ACCOUNT_VANITY_COLLECTION);
         stmt->SetData(0, state->AccountId);
@@ -7336,6 +7413,7 @@ private:
 
     state->ActiveAppearances = requested;
     SaveActiveAppearances(player, *state);
+    RefreshAscensionIncarnationDisplay(player);
     RefreshCosmetics(player, *state);
     RefreshVisibleItems(player);
     RefreshIncarnations(player);
@@ -7528,10 +7606,7 @@ private:
 
         player->DestroyItemCount(VANITY_BAZAAR_TOKEN_ITEM, cost, true);
         if (Item* bought = player->StoreNewItem(destinations, itemId, true))
-        {
-            bought->SetBinding(true);
             player->SendNewItem(bought, 1, true, false);
-        }
 
         LOG_INFO("coa", "{} bought consumable vanity item {} for {} Bazaar Tokens", player->GetName(), itemId, cost);
     }
@@ -7938,17 +8013,10 @@ private:
           categories.begin(), categories.end(), [](uint32 categoryId) {
             return categoryId >= 1 && categoryId <= 14;
           });
-
-      uint32 category = 0;
-      if (ItemTemplate const *itemTemplate = sObjectMgr->GetItemTemplate(itemId))
-        category = AscensionItemAppearanceAliases::CategoryFromInventoryType(
-            itemTemplate->InventoryType);
-      if (!category && categoryItr != categories.end())
-        category = *categoryItr;
-      if (!category)
+      if (categoryItr == categories.end())
         continue;
 
-      activeAppearances[category] = itemAppearanceItr->second;
+      activeAppearances[*categoryItr] = itemAppearanceItr->second;
       expanded = true;
     }
 
@@ -7958,6 +8026,8 @@ private:
   bool _clientDataLoaded = false;
   std::unordered_map<uint32, IncarnationCategory> _incarnationCategories;
   std::unordered_map<uint32, AppearanceInfo> _appearances;
+  std::unordered_map<uint32, uint32> _incarnationDisplays;
+  std::unordered_map<uint32, uint32> _incarnationCreatures;
   std::unordered_map<uint32, uint32> _itemAppearances;
   std::unordered_map<uint32, std::vector<uint32>> _itemSetItems;
   std::unordered_map<uint32, VanityInfo> _vanityItems;
@@ -8940,21 +9010,8 @@ public:
 
     bool OnPlayerCanUseItem(Player* player, ItemTemplate const* item, InventoryResult& result) override
     {
-        if (!ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
-            return true;
-
-        if (item->Spells[0].SpellId == 92982)
-        {
-            auto const& spells = AscensionWildcard::SPECIALIZATION_SWAP_SPELLS;
-            if (!std::all_of(spells.begin() + 7, spells.end(),
-                    [player](uint32 spell) { return player->HasSpell(spell); }))
-                return true;
-            result = EQUIP_ERR_CANT_DO_RIGHT_NOW;
-            ChatHandler(player->GetSession()).SendSysMessage("That specialization slot is already unlocked.");
-            return false;
-        }
-
-        if (item->Spells[0].SpellId != 55884)
+        if (!ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) ||
+            item->Spells[0].SpellId != 55884)
             return true;
         uint32 const learned = item->Spells[1].SpellId;
         auto const& spells = AscensionWildcard::SPECIALIZATION_SWAP_SPELLS;
@@ -9077,7 +9134,39 @@ public:
     }
   }
 
+  static void RemoveForeignVanillaRacials(Player* player)
+  {
+    if (!sConfigMgr->GetOption<bool>("CoACustomRaces.Enable", false))
+      return;
+    CoaCustomRacial const* custom = GetCoaCustomRacial(player->getRace());
+    if (!custom)
+      return;
+    std::vector<uint32> foreign;
+    for (auto const& [spellId, spell] : player->GetSpellMap())
+    {
+      if (spell->State == PLAYERSPELL_REMOVED ||
+          std::find(custom->Spells.begin(), custom->Spells.end(), spellId) != custom->Spells.end())
+        continue;
+      SkillLineAbilityMapBounds bounds = sSpellMgr->GetSkillLineAbilityMapBounds(spellId);
+      for (auto itr = bounds.first; itr != bounds.second; ++itr)
+        if (IsCoaVanillaRacialSkill(itr->second->SkillLine))
+        {
+          foreign.push_back(spellId);
+          break;
+        }
+    }
+    for (uint32 spellId : foreign)
+      player->removeSpell(spellId, SPEC_MASK_ALL, false);
+    for (uint32 skill : {101u, 124u, 125u, 126u, 220u, 733u, 753u, 754u, 756u, 760u, 11125u, 11760u})
+      if (player->HasSkill(skill))
+        player->SetSkill(skill, 0, 0, 0);
+    if (!foreign.empty())
+      LOG_INFO("module", "CoA racials: removed {} vanilla racial spells from {} (race {})", foreign.size(),
+               player->GetName(), uint32(player->getRace()));
+  }
+
   void OnPlayerLogin(Player *player) override {
+    RemoveForeignVanillaRacials(player);
     if (ascensionCompatConfig.GetConfigValue<bool>(
             AscensionCompatConfig::ENABLED)) {
       AscensionClassService::Instance().OnPlayerLogin(player);
@@ -9121,7 +9210,7 @@ public:
 
   void OnPlayerLearnSpell(Player *player, uint32 spellId) override {
     if (ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED) &&
-        IsAscensionCustomClass(player) && !AscensionWildcard::IsWildcardHero(player) &&
+        IsCharacterAdvancementClass(player) && !AscensionWildcard::IsWildcardHero(player) &&
         std::find(AscensionWildcard::SPECIALIZATION_SWAP_SPELLS.begin(),
                   AscensionWildcard::SPECIALIZATION_SWAP_SPELLS.end(), spellId) !=
             AscensionWildcard::SPECIALIZATION_SWAP_SPELLS.end())
@@ -9599,9 +9688,6 @@ public:
                 case 40120:
                     spellInfo->AttributesEx4 |= SPELL_ATTR4_ONLY_FLYING_AREAS;
                     break;
-                case 256779:
-                    spellInfo->AttributesEx5 |= SPELL_ATTR5_AI_DOESNT_FACE_TARGET;
-                    break;
                 case 83086:
                 case 9930889:
                     spellInfo->AttributesEx6 |= SPELL_ATTR6_NOT_IN_RAID_INSTANCES;
@@ -9771,7 +9857,6 @@ enum StoreTitleContract : uint32
 {
     ITEM_BLOODFORGED_CONTRACT = 977220,
     ITEM_FOUNDERS_CHARTER = 134988,
-    ITEM_FOUNDERS_CHARTER_ACCOUNT = 977020,
     TITLE_THE_BLOODY = 230,
     TITLE_FOUNDER = 210
 };
@@ -9793,7 +9878,6 @@ public:
                 titleId = TITLE_THE_BLOODY;
                 break;
             case ITEM_FOUNDERS_CHARTER:
-            case ITEM_FOUNDERS_CHARTER_ACCOUNT:
                 titleId = TITLE_FOUNDER;
                 break;
             default:
@@ -10126,35 +10210,6 @@ class spell_ascension_specialization_slot : public SpellScript
         OnCheckCast += SpellCheckCastFn(spell_ascension_specialization_slot::CheckSlot);
         OnEffectHitTarget += SpellEffectFn(spell_ascension_specialization_slot::SwitchSlot, EFFECT_0,
             SPELL_EFFECT_TALENT_SPEC_SELECT);
-    }
-};
-
-class spell_ascension_masters_tome_specialization : public SpellScript
-{
-    PrepareSpellScript(spell_ascension_masters_tome_specialization);
-
-    void HandleLearn(SpellEffIndex effect)
-    {
-        PreventHitDefaultEffect(effect);
-        Player* player = GetHitPlayer();
-        if (!player)
-            return;
-
-        auto const& spells = AscensionWildcard::SPECIALIZATION_SWAP_SPELLS;
-        for (uint32 index = 7; index < spells.size(); ++index)
-        {
-            if (!player->HasSpell(spells[index]))
-            {
-                player->learnSpell(spells[index]);
-                return;
-            }
-        }
-    }
-
-    void Register() override
-    {
-        OnEffectHitTarget += SpellEffectFn(spell_ascension_masters_tome_specialization::HandleLearn, EFFECT_0,
-            SPELL_EFFECT_LEARN_SPELL);
     }
 };
 
@@ -10492,9 +10547,245 @@ AscensionVanityOwnership::TestOverride::~TestOverride()
     ascensionCompatConfig.OverwriteConfigValue<std::string>(AscensionCompatConfig::STARTER_VANITY_ITEMS, _starterItems);
 }
 
-bool AscensionVanityOwnership::OwnsItem(Player const* player, uint32 itemId)
+namespace AscensionCompatData
 {
-    return AscensionCollectionService::Instance().OwnsVanityItem(player, itemId);
+    // Additive, read-only implementation of AscensionResourceQuery.h -- see that header for the
+    // contract each function promises. Deliberately placed here, outside the anonymous namespace
+    // above, purely to gain external linkage; it reads the same tables and mirrors the same
+    // per-class special-case constants AscensionResourceService already enforces internally
+    // (GetAuraStacks/CheckCast/OnSpellCast/ModifyAuraStacks, all above), it does not duplicate or
+    // reimplement any of that class's actual mutation logic, and it never changes player state.
+
+    std::vector<ResourceChannel> const& GetResourceChannels(uint8 classId)
+    {
+        static std::unordered_map<uint8, std::vector<ResourceChannel>> cache;
+        auto itr = cache.find(classId);
+        if (itr != cache.end())
+            return itr->second;
+
+        std::vector<ResourceChannel> channels;
+        for (ResourceDisplay const& display : ResourceDisplays)
+            if (display.ClassId == classId)
+                channels.push_back(ResourceChannel{false, 0, display.SpellId, display.Name});
+
+        // Manually-curated additions for resources that exist in a class's own hand-written
+        // Resource()/OnSpellCheckCast code but have no ResourceDisplays row at all -- see
+        // AscensionVenomancer::Resource (Exposed, AscensionVenomancer.cpp) and
+        // xoroth_casts::OnSpellCheckCast (Blood, AscensionXorothAbilities.cpp). Reaper's native
+        // Runic Power is included since AscensionClassMechanics26To32.cpp grants it a real
+        // crit-proc bonus (Soul Generator) outside NativePowerGainRules, making it a load-bearing
+        // part of that class's resource economy rather than an ordinary native bar a caller would
+        // already think to check.
+        if (classId == CLASS_PROPHET) // Venomancer
+            channels.push_back(ResourceChannel{false, 0, 805095, "Exposed"});
+        else if (classId == CLASS_FLESHWARDEN) // Knight of Xoroth
+            channels.push_back(ResourceChannel{false, 0, 800999, "Blood"});
+        else if (classId == CLASS_REAPER)
+            channels.push_back(ResourceChannel{true, POWER_RUNIC_POWER, 0, "Runic Power"});
+
+        return cache.emplace(classId, std::move(channels)).first->second;
+    }
+
+    ResourceState QueryAuraResourceState(Player* player, uint32 resourceSpellId)
+    {
+        ResourceState state;
+        if (!player)
+            return state;
+
+        if (Aura const* aura = player->GetAura(resourceSpellId))
+            state.Current = aura->GetStackAmount();
+
+        // Real caps that diverge from (or aren't represented in) that resource's own
+        // ResourceDisplays row -- these constants live in AscensionCustomResourceData.h and are
+        // the SAME ones AscensionCultist::Resource/AscensionTinker::Resource/AscensionSunCleric::
+        // Resource clamp to, not an independently hardcoded copy (see item 5 of the resource-
+        // engine review: SUN_CLERIC_SOLAR_POWER_MAX etc. used to only exist here).
+        switch (resourceSpellId)
+        {
+            case 500706: // Cultist Insanity
+                state.Maximum = CULTIST_INSANITY_MAX;
+                state.MaximumKnown = true;
+                return state;
+            case 801816: // Tinker Scrap
+                state.Maximum = TINKER_SCRAP_MAX;
+                state.MaximumKnown = true;
+                return state;
+            case 500149: // SunCleric SolarPower
+                state.Maximum = SUN_CLERIC_SOLAR_POWER_MAX;
+                state.MaximumKnown = true;
+                return state;
+            default:
+                break;
+        }
+
+        for (ResourceDisplay const& display : ResourceDisplays)
+        {
+            if (display.SpellId != resourceSpellId)
+                continue;
+            if (display.DisplayMaximum)
+            {
+                state.Maximum = display.DisplayMaximum;
+                state.MaximumKnown = true;
+                return state;
+            }
+            break;
+        }
+
+        // No fixed display cap -- fall back to the spell's own real max stack count (accounting
+        // for any stack-count-modifying talent, unlike a plain DisplayMaximum-or-StackAmount
+        // guess). Matches what AscensionVenomancer::Resource itself uses for Brood/Exposed.
+        if (SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(resourceSpellId))
+        {
+            if (uint8 maxStacks = spellInfo->CalcMaxAuraStacks(player))
+            {
+                state.Maximum = maxStacks;
+                state.MaximumKnown = true;
+                return state;
+            }
+        }
+
+        state.MaximumKnown = false;
+        return state;
+    }
+
+    std::vector<ResourceRequirement> QueryAbilityResourceRequirements(uint8 classId, uint32 resolvedSpellId)
+    {
+        std::vector<ResourceRequirement> out;
+
+        for (ResourceCostRule const& rule : ResourceCostRules)
+        {
+            if (rule.ClassId != classId || resolvedSpellId < rule.FirstSpellId || resolvedSpellId > rule.LastSpellId)
+                continue;
+            out.push_back(ResourceRequirement{rule.ResourceSpellId, rule.Amount, rule.Consumption,
+                rule.PreserveCostAuraSpellId, rule.PreserveCostChancePercent, 0, 0});
+            // ResourceCostRules never defines more than one requirement per spell today -- mirrors
+            // AscensionResourceService::CheckCast/OnSpellCast's own first-match-then-break. This
+            // table is the sole real gate for Felsworn/Stormbringer/Pyromancer -- confirmed by a
+            // full-tree audit of every OnSpellCheckCast/CanPrepare in this module; none of those
+            // three classes has any other custom-resource cast gate anywhere in their own files.
+            break;
+        }
+
+        // Every other hardcoded special-case gate found by that same full-tree audit -- see
+        // AscensionResourceQuery.h's own comment on this function for what each one is.
+        SpellInfo const* spellInfo = sSpellMgr->GetSpellInfo(resolvedSpellId);
+
+        if (classId == CLASS_REAPER && resolvedSpellId == 805078) // Generate Soul
+            out.push_back(ResourceRequirement{805077, 3, ResourceConsumption::None, 0, 0, 0, 0});
+
+        if (classId == CLASS_RANGER && spellInfo && spellInfo->SpellFamilyName == uint32(CLASS_RANGER) + 6)
+            out.push_back(ResourceRequirement{804329, 1, ResourceConsumption::None, 0, 0, 0, 0});
+
+        if (classId == CLASS_STARCALLER && resolvedSpellId == 800386) // Lunar Phase spender
+            out.push_back(ResourceRequirement{802985, 4, ResourceConsumption::Fixed, 0, 0, 0, 0});
+
+        if (classId == CLASS_FLESHWARDEN && spellInfo)
+        {
+            // Blood spender (two explicit spells, fully drained on cast).
+            if (resolvedSpellId == 520294 || resolvedSpellId == 805679)
+                out.push_back(ResourceRequirement{800999, 1, ResourceConsumption::All, 0, 0, 0, 0});
+            // Demonfire spender -- via the real AscensionXoroth::Spender predicate (an 11-root
+            // spell-chain match), not a hand-copied id list, so this can never drift out of sync
+            // with the actual gameplay gate in AscensionXorothAbilities.cpp. Also fully drained.
+            if (AscensionXoroth::Spender(spellInfo))
+                out.push_back(ResourceRequirement{500906, 1, ResourceConsumption::All, 0, 0, 0, 0});
+        }
+
+        if (classId == CLASS_PROPHET && spellInfo && AscensionVenomancer::Spender(spellInfo))
+            // Brood spender -- via the real AscensionVenomancer::Spender predicate, same reasoning
+            // as Xoroth above. Drains the full current stack (AscensionVenomancerAbilities.cpp's
+            // own OnSpellBeforeEffects: Resource(player, Brood, -int32(Count(player, Brood)))).
+            out.push_back(ResourceRequirement{804972, 1, ResourceConsumption::All, 0, 0, 0, 0});
+
+        if (classId == CLASS_CULTIST && spellInfo && AscensionCultist::IsInsanitySpender(spellInfo))
+            // Conditional: only a real requirement while Madness is ABSENT -- see
+            // AscensionCultist::Resource's own comment on why a decrease silently no-ops under
+            // Madness (AscensionCultistAbilities.cpp:52-53,73-74).
+            out.push_back(ResourceRequirement{500706, 40, ResourceConsumption::Fixed, 0, 0, 0, 803061});
+
+        if (classId == CLASS_SUN_CLERIC && resolvedSpellId == 804584) // DawnCast
+            out.push_back(ResourceRequirement{500149, 20, ResourceConsumption::Fixed, 0, 0, 0, 0});
+
+        if (classId == CLASS_TINKER && resolvedSpellId == 801384) // Mechsuit
+            out.push_back(ResourceRequirement{801816, 1, ResourceConsumption::None, 0, 0, 0, 0});
+
+        return out;
+    }
+
+    std::vector<AuraGate> QueryAbilityAuraGates(uint8 classId, uint32 resolvedSpellId)
+    {
+        std::vector<AuraGate> out;
+
+        // Sun Cleric's DawnCast is blocked outright while Dawn is already up, independent of its
+        // real SolarPower>=20 numeric requirement (see QueryAbilityResourceRequirements) --
+        // AscensionSunClericAbilities.cpp:75-76's own `|| player->HasAura(Dawn)`.
+        if (classId == CLASS_SUN_CLERIC && resolvedSpellId == 804584)
+            out.push_back(AuraGate{807440, true});
+
+        return out;
+    }
+
+    MinionCapacityState QueryMinionCapacityState(Player* player)
+    {
+        MinionCapacityState state;
+        if (!player || player->getClass() != CLASS_NECROMANCER)
+            return state;
+
+        state.Maximum = AscensionNecromancer::Capacity(player);
+        state.Current = AscensionNecromancer::Used(player);
+        return state;
+    }
+
+    uint32 QueryMinionCapacityCost(Player* player, uint32 resolvedSpellId)
+    {
+        if (!player || player->getClass() != CLASS_NECROMANCER)
+            return 0;
+        return AscensionNecromancer::Cost(player, resolvedSpellId);
+    }
+
+    std::vector<ResourceGain> QueryAbilityResourceGains(uint8 classId, uint32 resolvedSpellId)
+    {
+        std::vector<ResourceGain> out;
+
+        for (ResourceGainRule const& rule : ResourceGainRules)
+        {
+            if (rule.ClassId != classId)
+                continue;
+            if ((rule.FirstSpellId || rule.LastSpellId) &&
+                (resolvedSpellId < rule.FirstSpellId || resolvedSpellId > rule.LastSpellId))
+                continue;
+
+            ResourceGain gain;
+            gain.IsNative = false;
+            gain.ResourceSpellId = rule.ResourceSpellId;
+            gain.Amount = rule.Amount;
+            gain.Event = rule.Event;
+            gain.RequiredAuraSpellId = rule.RequiredAuraSpellId;
+            gain.ForbiddenAuraSpellId = rule.ForbiddenAuraSpellId;
+            gain.ChancePercent = rule.ChancePercent;
+            out.push_back(gain);
+        }
+
+        for (NativePowerGainRule const& rule : NativePowerGainRules)
+        {
+            if (rule.ClassId != classId)
+                continue;
+            if ((rule.FirstSpellId || rule.LastSpellId) &&
+                (resolvedSpellId < rule.FirstSpellId || resolvedSpellId > rule.LastSpellId))
+                continue;
+
+            ResourceGain gain;
+            gain.IsNative = true;
+            gain.NativePowerType = rule.PowerType;
+            gain.Amount = rule.InternalAmount;
+            gain.Event = rule.Event;
+            gain.RequiredAuraSpellId = rule.RequiredAuraSpellId;
+            gain.ForbiddenAuraSpellId = rule.ForbiddenAuraSpellId;
+            out.push_back(gain);
+        }
+
+        return out;
+    }
 }
 
 bool IsAscensionPrimalistTameEligible(Player const* player)
@@ -10514,7 +10805,7 @@ bool IsAscensionPrimalistWeaponsEligible(Player const* player, bool allowUnconfi
 
 uint32 GetAscensionActiveSpecialization(Player const* player)
 {
-    if (!player || !IsAscensionCustomClass(player))
+    if (!player || !IsCharacterAdvancementClass(player))
         return 0;
 
     if (uint32 const active = AscensionClassService::Instance().GetActiveSpecialization(player))
@@ -10765,6 +11056,16 @@ public:
   }
 };
 
+bool AscensionClassServiceBridge::SwitchSpecialization(Player* player, uint32 specializationId)
+{
+    return AscensionClassService::Instance().SwitchSpecialization(player, specializationId);
+}
+
+bool AscensionClassServiceBridge::SetTalentRank(Player* player, AscensionCompatData::CoATalentEntry const& entry, uint32 rank, std::string& error)
+{
+    return AscensionClassService::Instance().SetTalentRank(player, entry, rank, error);
+}
+
 void AppendConfiguredClientConfigs(AscensionClientConfig& config) {
   AppendAscensionClientConfigList(ascensionCompatConfig.GetConfigValue<std::string>(
                                       AscensionCompatConfig::CLIENT_BOOLEAN_CONFIGS),
@@ -10773,6 +11074,290 @@ void AppendConfiguredClientConfigs(AscensionClientConfig& config) {
                                       AscensionCompatConfig::CLIENT_INTEGER_CONFIGS),
                                   config.Integers);
 }
+
+static uint32 IncarnationCategoryFor(uint32 form, uint32 spellId)
+{
+    switch (spellId)
+    {
+        case 800841: return 18;
+        case 803183: return 17;
+        case 520307: return 19;
+        case 803212: return 20;
+        case 800912: return 22;
+        case 800157:
+        case 804518: return 18;
+        case 562572:
+        case 804216: return 31;
+        case 800797: return 24;
+        case 561083: return 19;
+        case 803054:
+        case 804287: return 22;
+        default: break;
+    }
+
+    switch (form)
+    {
+        case FORM_BEAR:
+        case FORM_DIREBEAR:      return 17;
+        case FORM_CAT:           return 18;
+        case FORM_TRAVEL:        return 19;
+        case FORM_AQUA:          return 20;
+        case FORM_FLIGHT:
+        case FORM_FLIGHT_EPIC:   return 21;
+        case FORM_MOONKIN:       return 22;
+        case FORM_TREE:          return 23;
+        case FORM_GHOSTWOLF:     return 24;
+        case FORM_METAMORPHOSIS: return 31;
+        case 55:                 return 66;
+        case 50:                 return 67;
+        default:                 return 0;
+    }
+}
+
+static uint32 IncarnationCategoryForCreature(uint32 entry)
+{
+    switch (entry)
+    {
+        case 416:   case 1100416: return 25;
+        case 1860:  case 1101860: return 26;
+        case 1863:  case 1101863: return 27;
+        case 417:   case 1100417: return 28;
+        case 17252: case 1117252: return 29;
+        case 1793:                return 68;
+        default:                  return 0;
+    }
+}
+
+static uint32 ClassPetCategoryForCreature(Creature* creature)
+{
+    if (Pet* pet = creature->ToPet())
+        if (pet->getPetType() == HUNTER_PET)
+            return 33;
+    uint32 entry = creature->GetEntry();
+    if (entry > 1100000)
+        entry -= 1100000;
+    switch (entry)
+    {
+        case 416: case 1860: case 1863: case 417: case 17252:
+        case 89: case 11859:     return 34;
+        case 26125: case 27829:  return 35;
+        case 510:                return 36;
+        case 15438: case 15352:
+        case 29264:              return 37;
+        default:                 return 0;
+    }
+}
+
+void ApplyAscensionCreatureIncarnation(Creature* creature)
+{
+    if (!creature || !ascensionCompatConfig.GetConfigValue<bool>(AscensionCompatConfig::ENABLED))
+        return;
+
+    uint32 const category = IncarnationCategoryForCreature(creature->GetEntry());
+    uint32 const classPetCategory = ClassPetCategoryForCreature(creature);
+    if (!category && !classPetCategory)
+        return;
+
+    Player* owner = creature->GetCharmerOrOwnerPlayerOrPlayerItself();
+    if (!owner)
+        return;
+
+    AscensionCollectionService& collection = AscensionCollectionService::Instance();
+    uint32 model = category ? collection.GetIncarnationDisplay(owner, category) : 0;
+    if (!model && classPetCategory)
+        model = collection.GetIncarnationDisplay(owner, classPetCategory);
+    Pet* pet = creature->ToPet();
+    if (pet && pet->getPetType() == HUNTER_PET)
+    {
+        creature->SetDisplayId(model ? model : creature->GetNativeDisplayId());
+        return;
+    }
+    if (model)
+    {
+        creature->SetNativeDisplayId(model);
+        creature->SetDisplayId(model);
+    }
+}
+
+class AscensionIncarnationPetScript : public PetScript
+{
+public:
+    AscensionIncarnationPetScript() : PetScript("AscensionIncarnationPetScript", { PETHOOK_ON_PET_ADD_TO_WORLD }) { }
+
+    void OnPetAddToWorld(Pet* pet) override { ApplyAscensionCreatureIncarnation(pet); }
+};
+
+class AscensionIncarnationCreatureScript : public AllCreatureScript
+{
+public:
+    AscensionIncarnationCreatureScript() : AllCreatureScript("AscensionIncarnationCreatureScript") { }
+
+    void OnCreatureAddWorld(Creature* creature) override
+    {
+        if (creature->IsSummon())
+            ApplyAscensionCreatureIncarnation(creature);
+    }
+};
+
+uint32 GetAscensionIncarnationDisplay(Player const* player, uint32 form, uint32 spellId)
+{
+    if (!player || !ascensionCompatConfig.IsEnabled())
+        return 0;
+
+    uint32 const category = IncarnationCategoryFor(form, spellId);
+    return category ? AscensionCollectionService::Instance().GetIncarnationDisplay(player, category) : 0;
+}
+
+void RefreshAscensionIncarnationDisplay(Player* player)
+{
+    if (!player || !player->IsInWorld())
+        return;
+
+    if (Pet* pet = player->GetPet())
+        if (pet->IsInWorld())
+            ApplyAscensionCreatureIncarnation(pet);
+
+    Unit::AuraEffectList const& shapeshifts = player->GetAuraEffectsByType(SPELL_AURA_MOD_SHAPESHIFT);
+    if (!shapeshifts.empty() && !player->getTransForm())
+    {
+        if (uint32 model = player->GetModelForForm(player->GetShapeshiftForm(), shapeshifts.front()->GetId()))
+            player->SetDisplayId(model);
+        return;
+    }
+
+    if (uint32 transform = player->getTransForm())
+        if (uint32 model = GetAscensionIncarnationDisplay(player, FORM_NONE, transform))
+            player->SetDisplayId(model);
+}
+
+static std::unordered_map<uint32, std::map<uint32, uint32>> CustomRaceDisplays;
+
+static void LoadCustomRaceDisplays()
+{
+    CustomRaceDisplays.clear();
+    if (!sConfigMgr->GetOption<bool>("CoACustomRaces.Enable", false))
+        return;
+    QueryResult result = WorldDatabase.Query("SELECT race, gender, idx, displayId FROM custom_race_display");
+    if (!result)
+        return;
+
+    uint32 count = 0;
+    do
+    {
+        Field* fields = result->Fetch();
+        CustomRaceDisplays[(fields[0].Get<uint32>() << 8) | fields[1].Get<uint32>()][fields[2].Get<uint32>()] = fields[3].Get<uint32>();
+        ++count;
+    } while (result->NextRow());
+    LOG_INFO("server.loading", ">> Loaded {} custom race looks", count);
+}
+
+bool IsAscensionMaleOnlyRace(uint8 race)
+{
+    if (!sConfigMgr->GetOption<bool>("CoACustomRaces.Enable", false))
+        return false;
+    switch (race)
+    {
+        case 15: case 17: case 18: case 23: case 24: case 25: case 26: case 32: case 50:
+        case 83: case 97:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool HasAscensionCustomRaceDisplay(uint8 race, uint8 gender)
+{
+    auto const itr = CustomRaceDisplays.find((uint32(race) << 8) | gender);
+    return itr != CustomRaceDisplays.end() && !itr->second.empty();
+}
+
+uint32 GetAscensionCustomRaceDisplay(Player const* player)
+{
+    if (!player || !sConfigMgr->GetOption<bool>("CoACustomRaces.Enable", false))
+        return 0;
+
+    auto const itr = CustomRaceDisplays.find((uint32(player->getRace(true)) << 8) | player->getGender());
+    if (itr == CustomRaceDisplays.end() || itr->second.empty())
+        return 0;
+
+    std::map<uint32, uint32> const& looks = itr->second;
+    uint32 const skin = player->GetByteValue(PLAYER_BYTES, 0);
+    uint32 const hairStyle = player->GetByteValue(PLAYER_BYTES, 2);
+    uint32 display = 0;
+    if (auto const look = looks.find(hairStyle * 32 + skin); look != looks.end())
+        display = look->second;
+    else if (auto const bySkin = looks.find(skin); bySkin != looks.end())
+        display = bySkin->second;
+    else
+        display = std::next(looks.begin(), skin % looks.size())->second;
+
+    LOG_INFO("coa", "Custom race look for {}: race {} gender {} skin {} hair style {} -> display {}",
+        player->GetName(), player->getRace(true), player->getGender(), skin, hairStyle, display);
+    return display;
+}
+
+class AscensionCustomRaceDisplayWorldScript : public WorldScript
+{
+public:
+    AscensionCustomRaceDisplayWorldScript() : WorldScript("AscensionCustomRaceDisplayWorldScript", { WORLDHOOK_ON_STARTUP }) { }
+
+    void OnStartup() override { LoadCustomRaceDisplays(); }
+};
+
+static constexpr uint32 VANILLA_BOOK_TRAINER = 900100;
+
+static Trainer::Trainer const* VanillaBookTrainer()
+{
+    static Trainer::Trainer const* trainer = nullptr;
+    static bool looked = false;
+    if (!looked)
+    {
+        looked = true;
+        if (QueryResult result = WorldDatabase.Query("SELECT CreatureId FROM creature_default_trainer WHERE TrainerId = {} LIMIT 1", VANILLA_BOOK_TRAINER))
+            trainer = sObjectMgr->GetTrainer(result->Fetch()[0].Get<uint32>());
+    }
+    return trainer;
+}
+
+static void TeachVanillaBookSpells(Player* player)
+{
+    if (!player || !player->GetSession() || player->GetSession()->IsBot())
+        return;
+    uint8 const playerClass = player->getClass();
+    if (playerClass == 0 || playerClass > 11 || playerClass == 10)
+        return;
+    Trainer::Trainer const* trainer = VanillaBookTrainer();
+    if (!trainer)
+        return;
+
+    for (uint8 pass = 0; pass < 8; ++pass)
+    {
+        bool learned = false;
+        for (Trainer::Spell const& spell : trainer->GetSpells())
+        {
+            if (spell.ReqLevel > 1 || !trainer->CanTeachSpell(player, &spell))
+                continue;
+            uint32 const stockId = spell.SpellId >= 1100000 ? spell.SpellId - 1100000 : spell.SpellId;
+            if (GetTalentSpellPos(stockId) || GetTalentSpellPos(spell.SpellId))
+                continue;
+            if (spell.IsCastable())
+                player->CastSpell(player, spell.SpellId, true);
+            else
+                player->learnSpell(spell.SpellId);
+            learned = true;
+        }
+        if (!learned)
+            break;
+    }
+}
+
+class AscensionVanillaBookPlayerScript : public PlayerScript
+{
+public:
+    AscensionVanillaBookPlayerScript() : PlayerScript("AscensionVanillaBookPlayerScript", { PLAYERHOOK_ON_FIRST_LOGIN }) { }
+
+    void OnPlayerFirstLogin(Player* player) override { TeachVanillaBookSpells(player); }
+};
 
 void AddAscensionCompatScripts() {
   MountDisplayFallback::Owner.store(&CollectionMountDisplay, std::memory_order_relaxed);
@@ -10796,7 +11381,6 @@ void AddAscensionCompatScripts() {
   RegisterSpellScript(spell_ascension_stick_on_a_carrot);
   RegisterSpellScript(spell_ascension_local_mount);
   RegisterSpellScript(spell_ascension_specialization_slot);
-  RegisterSpellScript(spell_ascension_masters_tome_specialization);
   RegisterSpellScript(spell_ascension_jailers_bargain);
   RegisterSpellScript(spell_ascension_reaper_extinction);
   RegisterSpellScript(spell_ascension_reaper_extinction_buff);
@@ -10815,4 +11399,8 @@ void AddAscensionCompatScripts() {
   new AscensionCompatChangelogScript();
   new AscensionCompatWorldScript();
   new AscensionCompatAllCreatureScript();
+  new AscensionIncarnationPetScript();
+  new AscensionIncarnationCreatureScript();
+  new AscensionCustomRaceDisplayWorldScript();
+  new AscensionVanillaBookPlayerScript();
 }

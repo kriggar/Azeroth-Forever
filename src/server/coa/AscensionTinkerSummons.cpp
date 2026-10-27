@@ -13,7 +13,6 @@
 #include "ScriptedGossip.h"
 #include "SpellAuraEffects.h"
 #include "SpellAuras.h"
-#include "SpellInfo.h"
 #include "SpellMgr.h"
 #include "TemporarySummon.h"
 #include "Vehicle.h"
@@ -22,9 +21,7 @@ namespace AscensionTinker
 {
 enum TinkerSummonSpell : uint32
 {
-    DestructoBot = 804673,
-    BuildNoiseBox = 280310,
-    BuildNoiseBoxDevice = 52036
+    DestructoBot = 804673
 };
 
 bool Permanent(uint32 entry)
@@ -307,7 +304,7 @@ struct npc_ascension_tinker_device : ScriptedAI
         me->SetOwnerGUID(owner);
         player->m_Controlled.insert(me);
         me->SetFaction(player->GetFaction());
-        if (Turret(me->GetEntry()) || Explosive() || Beacon(me->GetEntry()))
+        if (Turret(me->GetEntry()) || Explosive())
         {
             me->m_ControlledByPlayer = true;
             me->SetUnitFlag(UNIT_FLAG_PLAYER_CONTROLLED);
@@ -625,23 +622,10 @@ public:
         return true;
     }
 };
-class tinker_noise_box_metadata : public GlobalScript
-{
-public:
-    tinker_noise_box_metadata() : GlobalScript("tinker_noise_box_metadata",
-        {GLOBALHOOK_ON_LOAD_SPELL_CUSTOM_ATTR}) { }
-
-    void OnLoadSpellCustomAttr(SpellInfo* info) override
-    {
-        if (info->Id == BuildNoiseBox && info->Effects[EFFECT_0].Effect == SPELL_EFFECT_SUMMON)
-            info->Effects[EFFECT_0].MiscValue = BuildNoiseBoxDevice;
-    }
-};
 }
 void AddSC_AscensionTinkerSummons()
 {
     new go_ascension_tinker_battery();
-    new tinker_noise_box_metadata();
     RegisterCreatureAI(npc_ascension_tinker_pet);
     RegisterCreatureAI(npc_ascension_tinker_device);
 }

@@ -314,9 +314,15 @@ inline Context ContextOf(bool battlegroundOrArena, bool scriptedPrivateInstance,
     return dungeon ? Context::Dungeon : Context::World;
 }
 
-inline float Multiplier(Multipliers const& multipliers, Context context, std::uint32_t mapId, std::uint8_t level)
+inline bool CanBeHandedOver(Context context)
 {
-    if (context == Context::None)
+    return context == Context::Dungeon || context == Context::Raid;
+}
+
+inline float Multiplier(Multipliers const& multipliers, Context context, std::uint32_t mapId, std::uint8_t level,
+    bool externallyOwned = false)
+{
+    if (context == Context::None || (externallyOwned && CanBeHandedOver(context)))
         return 1.0f;
     if (auto itr = multipliers.maps.find(mapId); itr != multipliers.maps.end())
         return itr->second.Evaluate(level);
@@ -331,9 +337,16 @@ inline float Multiplier(Multipliers const& multipliers, Context context, std::ui
     }
 }
 
-inline float SpellMultiplier(Settings const& settings, Context context, std::uint32_t mapId, std::uint8_t level,
-    bool weaponSpell)
+inline float HookMultiplier(float multiplier, bool healthBudgetedElsewhere)
 {
+    return healthBudgetedElsewhere ? 1.0f : multiplier;
+}
+
+inline float SpellMultiplier(Settings const& settings, Context context, std::uint32_t mapId, std::uint8_t level,
+    bool weaponSpell, bool externallyOwned = false)
+{
+    if (externallyOwned && CanBeHandedOver(context))
+        return 1.0f;
     if (!weaponSpell && context != Context::None)
     {
         if (auto itr = settings.spellDamage.maps.find(mapId); itr != settings.spellDamage.maps.end())

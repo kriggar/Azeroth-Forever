@@ -15,7 +15,6 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "AscensionVanityOwnership.h"
 #include "Common.h"
 #include "Item.h"
 #include "LocalLevelScaling.h"
@@ -929,12 +928,6 @@ void WorldSession::SendListInventory(ObjectGuid vendorGuid, uint32 vendorEntry)
                 // Items sold out are not displayed in list
                 uint32 leftInStock = !item->maxcount ? 0xFFFFFFFF : vendor->GetVendorItemCurrentCount(item);
                 if (!_player->IsGameMaster() && !leftInStock)
-                {
-                    continue;
-                }
-
-                // Vanity items the account already owns are delivered from its collection, not sold again
-                if (!_player->IsGameMaster() && AscensionVanityOwnership::OwnsItem(_player, item->item))
                 {
                     continue;
                 }

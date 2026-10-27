@@ -58,6 +58,21 @@ class CopyServer:
 
 
 class RunnerTests(unittest.TestCase):
+    def test_affixed_grants_validate_property_and_single_item_count(self):
+        step = {'action': 'add_item', 'actor': 'caster', 'item': 13858, 'property': 13202}
+        self.scenario['steps'].append(step)
+        for value in (0, -13202, 13202, -(2**31), 2**31 - 1):
+            step['property'] = value
+            self.assertIs(run.validate(self.scenario), self.scenario)
+        for value in (True, 1.5, '13202', -(2**31) - 1, 2**31):
+            step['property'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                run.validate(self.scenario)
+        step['property'] = 13202
+        step['count'] = 2
+        with self.assertRaisesRegex(ValueError, 'require one item'):
+            run.validate(self.scenario)
+
     def with_players(self, schema, count):
         scenario = copy.deepcopy(self.scenario)
         scenario['schema'] = schema
@@ -140,39 +155,6 @@ class RunnerTests(unittest.TestCase):
         scenario['steps'].append({key: value for key, value in step.items() if key != 'entry'})
         with self.assertRaises(ValueError):
             run.validate(scenario)
-
-    def test_nearby_creature_can_attack_needs_a_player_and_entry(self):
-        step = {'action': 'assert', 'actor': 'caster', 'metric': 'nearby_creature_can_attack', 'entry': 24484,
-                'equals': 0}
-        self.assert_step_validates(step)
-        for change in ({'actor': 'target'}, {'entry': 0}, {'entry': '24484'}):
-            self.assert_step_rejected({**step, **change})
-        self.assert_step_rejected({key: value for key, value in step.items() if key != 'entry'})
-
-    def test_nearby_creature_mount_display_needs_a_player_and_entry(self):
-        step = {'action': 'assert', 'actor': 'caster', 'metric': 'nearby_creature_mount_display', 'entry': 23543,
-                'min': 1}
-        self.assert_step_validates(step)
-        for change in ({'actor': 'target'}, {'entry': 0}, {'entry': '23543'}):
-            self.assert_step_rejected({**step, **change})
-        self.assert_step_rejected({key: value for key, value in step.items() if key != 'entry'})
-
-    def test_nearby_creature_display_needs_a_player_and_entry(self):
-        step = {'action': 'assert', 'actor': 'caster', 'metric': 'nearby_creature_display', 'entry': 24468,
-                'equals': 2790}
-        self.assert_step_validates(step)
-        for change in ({'actor': 'target'}, {'entry': 0}, {'entry': '24468'}):
-            self.assert_step_rejected({**step, **change})
-        self.assert_step_rejected({key: value for key, value in step.items() if key != 'entry'})
-
-    def test_nearby_creature_aura_count_needs_a_player_entry_and_spell(self):
-        step = {'action': 'assert', 'actor': 'caster', 'metric': 'nearby_creature_aura_count', 'entry': 23686,
-                'spell': 42074, 'min': 1}
-        self.assert_step_validates(step)
-        for change in ({'actor': 'target'}, {'entry': 0}, {'spell': 0}, {'spell': '42074'}):
-            self.assert_step_rejected({**step, **change})
-        for field in ('entry', 'spell'):
-            self.assert_step_rejected({key: value for key, value in step.items() if key != field})
 
     def assert_step_validates(self, step):
         scenario = copy.deepcopy(self.scenario)

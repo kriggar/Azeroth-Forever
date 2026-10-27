@@ -31,8 +31,7 @@ enum SummonedEffectEvents : uint32
 {
     EVENT_ACT = 1,
     EVENT_OWNER_CHECK = 2,
-    EVENT_PLACE = 3,
-    EVENT_RETURN = 4
+    EVENT_PLACE = 3
 };
 
 enum SummonedEffectPoints : uint32
@@ -294,12 +293,8 @@ struct npc_ascension_summoned_effect : public ScriptedAI
     {
         if (type != POINT_MOTION_TYPE || id != POINT_OUT || !row || row->Path != Motion::OutAndBack)
             return;
-        events.ScheduleEvent(EVENT_RETURN, 1ms);
-    }
-
-    void Return(Unit* owner)
-    {
-        me->GetMotionMaster()->MovePoint(POINT_BACK, owner->GetPosition(), FORCED_MOVEMENT_RUN, velocity, false);
+        if (Unit* owner = Owner())
+            me->GetMotionMaster()->MovePoint(POINT_BACK, owner->GetPosition(), FORCED_MOVEMENT_RUN, velocity, false);
     }
 
     void JustDied(Unit*) override
@@ -463,8 +458,6 @@ struct npc_ascension_summoned_effect : public ScriptedAI
                 events.ScheduleEvent(EVENT_OWNER_CHECK, 1s);
             else if (event == EVENT_PLACE)
                 Place(owner);
-            else if (event == EVENT_RETURN)
-                Return(owner);
             else
                 Act(owner);
         }

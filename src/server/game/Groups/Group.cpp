@@ -1965,20 +1965,13 @@ void Group::UpdatePlayerOutOfRange(Player* player)
         return;
 
     WorldPacket data;
+    player->GetSession()->BuildPartyMemberStatsChangedPacket(player, &data);
 
     for (GroupReference* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
     {
         Player* member = itr->GetSource();
-        if (!member || member->GetSession()->IsHeadlessBot())
-            continue;
-
-        if (!member->IsInMap(player) || !member->IsWithinDist(player, member->GetSightRange(player), false))
-        {
-            if (data.GetOpcode() == NULL_OPCODE)
-                player->GetSession()->BuildPartyMemberStatsChangedPacket(player, &data);
-
+        if (member && (!member->IsInMap(player) || !member->IsWithinDist(player, member->GetSightRange(player), false)))
             member->SendDirectMessage(&data);
-        }
     }
 }
 

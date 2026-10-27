@@ -383,6 +383,7 @@ protected:
     uint8 HairColor = 0;
     uint8 FacialHair = 0;
     uint8 OutfitId = 0;
+    uint64 HaranirExtra = 0;                            // CoA: Esteria Haranir appearance extension
 
     /// Server side data
     uint8 CharCount = 0;
@@ -702,7 +703,6 @@ public:
     bool HandleRecruitAFriendRewardsCommand(std::string const& command);
     void UpdateRecruitMilestoneRewards();
     void RecoverRecruitAFriendRewards(bool recruit = false);
-    void DeliverRecruitAFriendRewards(PreparedQueryResult rows, bool recruit);
 
     // Packets cooldown
     time_t GetCalendarEventCreationCooldown() const { return _calendarEventCreationCooldown; }
@@ -1284,11 +1284,6 @@ public:                                                 // opcodes handlers
     [[nodiscard]] bool IsBot() const
     {
         return _isBot;
-    }
-
-    [[nodiscard]] bool IsHeadlessBot() const
-    {
-        return _isBot && !m_Socket && !_socketlessPacketObserver;
     }
 
 private:

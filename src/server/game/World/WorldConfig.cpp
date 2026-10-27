@@ -259,7 +259,6 @@ void WorldConfig::BuildConfigCache()
     SetConfigValue<bool>(CONFIG_CHAT_FILTER_YELL, "ChatFilter.Yell", false);
     SetConfigValue<bool>(CONFIG_CHAT_FILTER_EMOTE, "ChatFilter.Emote", false);
 
-    SetConfigValue<bool>(CONFIG_ACCOUNT_WIDE_FRIENDS, "Social.AccountWideFriends", false, ConfigValueCache::Reloadable::No);
     SetConfigValue<bool>(CONFIG_ALLOW_TWO_SIDE_ACCOUNTS, "AllowTwoSide.Accounts", true);
     SetConfigValue<bool>(CONFIG_ALLOW_TWO_SIDE_INTERACTION_CALENDAR, "AllowTwoSide.Interaction.Calendar", false);
     SetConfigValue<bool>(CONFIG_ALLOW_TWO_SIDE_INTERACTION_CHAT, "AllowTwoSide.Interaction.Chat", false);
@@ -673,7 +672,7 @@ void WorldConfig::BuildConfigCache()
     SetConfigValue<uint32>(CONFIG_LFG_OPTIONSMASK, "DungeonFinder.OptionsMask", 5);
     SetConfigValue<bool>(CONFIG_LFG_CAST_DESERTER, "DungeonFinder.CastDeserter", true);
     SetConfigValue<bool>(CONFIG_LFG_ALLOW_COMPLETED, "DungeonFinder.AllowCompleted", true);
-    SetConfigValue<uint32>(CONFIG_LFG_MAX_EXPANSION, "DungeonFinder.MaxExpansion", 0);
+    SetConfigValue<uint32>(CONFIG_LFG_MAX_EXPANSION, "DungeonFinder.MaxExpansion", GetConfigValue<uint32>(CONFIG_EXPANSION));
     SetConfigValue<uint32>(CONFIG_LFG_DUNGEON_SELECTION_COOLDOWN, "DungeonFinder.DungeonSelectionCooldown", 0);
 
     // DBC_ItemAttributes

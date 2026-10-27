@@ -23,6 +23,7 @@
 #include "Battleground.h"
 #include "BattlegroundMgr.h"
 #include "CharacterDatabaseCleaner.h"
+#include "CoAPortableSession.h"
 #include "Chat.h"
 #include "Common.h"
 #include "Config.h"
@@ -3013,6 +3014,14 @@ void Player::SetVisibleItemSlot(uint8 slot, Item* pItem)
     }
 
     sScriptMgr->OnPlayerAfterSetVisibleItemSlot(this, slot, pItem);
+
+    // CoA Custom 1.5: Gnoll (83) and Saberon (84) are creature bodies whose own outfit (Esteria appearance) dresses
+    // them; body armor drawn on them does not fit, so those slots stay unseen (weapons, shield, shoulders, helmet do)
+    if (IsCoaOutfitBodyHidden(getRace(), slot))
+    {
+        SetUInt32Value(PLAYER_VISIBLE_ITEM_1_ENTRYID + (slot * 2), 0);
+        SetUInt32Value(PLAYER_VISIBLE_ITEM_1_ENCHANTMENT + (slot * 2), 0);
+    }
 }
 
 void Player::VisualizeItem(uint8 slot, Item* pItem)
@@ -5170,6 +5179,13 @@ bool Player::LoadFromDB(ObjectGuid playerGuid, CharacterDatabaseQueryHolder cons
     SetByteValue(PLAYER_BYTES_2, 3, fields[15].Get<uint8>());
     SetByteValue(PLAYER_BYTES_3, 0, fields[5].Get<uint8>());
     SetByteValue(PLAYER_BYTES_3, 1, fields[54].Get<uint8>());
+    if (UsesExtendedAppearance(getRace(true)))           // CoA: Esteria appearance extension
+        SetByteValue(UNIT_FIELD_PADDING, 0, uint8(fields[75].Get<uint64>()));
+    else if (UsesHaranirAppearance(getRace(true)))
+    {
+        SetUInt32Value(UNIT_FIELD_PADDING, uint32(fields[75].Get<uint64>()));
+        SetUInt32Value(OBJECT_FIELD_PADDING, uint32(fields[75].Get<uint64>() >> 32));
+    }
     ReplaceAllPlayerFlags((PlayerFlags)fields[16].Get<uint32>());
 
     RemovePlayerFlag(PLAYER_FLAGS_NO_PLAY_TIME);
@@ -6931,12 +6947,17 @@ bool Player::Satisfy(DungeonProgressionRequirements const* ar, uint32 target_map
         if (!mapEntry)
             return false;
 
+        Difficulty target_difficulty = GetDifficulty(mapEntry->IsRaid());
+
         if (!sWorld->getBoolConfig(CONFIG_INSTANCE_IGNORE_LEVEL))
         {
-            if (ar->levelMin && GetLevel() < ar->levelMin)
-                LevelMin = ar->levelMin;
-            if (ar->levelMax && GetLevel() > ar->levelMax)
-                LevelMax = ar->levelMax;
+            uint8 minLevel = ar->levelMin;
+            uint8 maxLevel = ar->levelMax;
+            sScriptMgr->OnResolveDungeonAccessLevels(this, target_map, target_difficulty, minLevel, maxLevel);
+            if (minLevel && GetLevel() < minLevel)
+                LevelMin = minLevel;
+            if (maxLevel && GetLevel() > maxLevel)
+                LevelMax = maxLevel;
         }
 
         if (sDisableMgr->IsDisabledFor(DISABLE_TYPE_MAP, target_map, this))
@@ -7037,7 +7058,7 @@ bool Player::Satisfy(DungeonProgressionRequirements const* ar, uint32 target_map
             }
         }
 
-        Difficulty target_difficulty = GetDifficulty(mapEntry->IsRaid());
+        target_difficulty = GetDifficulty(mapEntry->IsRaid());
         MapDifficulty const* mapDiff = GetDownscaledMapDifficultyData(target_map, target_difficulty);
         if (LevelMin || LevelMax || ilvlRequirementNotMet
             || missingPlayerItems.size() || missingPlayerQuests.size() || missingPlayerAchievements.size()
@@ -7337,6 +7358,9 @@ void Player::SaveToDB(CharacterDatabaseTransaction trans, bool create, bool logo
     // save pet (hunter pet level and experience and all type pets health/mana).
     if (Pet* pet = GetPet())
         pet->SavePetToDB(PET_SAVE_AS_CURRENT);
+
+    if (!create)
+        CoAPortableSession::AppendSaveMarker(this, trans, logout);
 }
 
 // flag data to be saved by UpdateAdditionalSaves a moment after an important change,
@@ -7936,6 +7960,9 @@ void Player::_SaveSpells(CharacterDatabaseTransaction trans)
 {
     CharacterDatabasePreparedStatement* stmt = nullptr;
 
+    // A character's first save writes its whole spellbook (a companion that was just created knows over a thousand
+    // spells). New spells go out as multi-row INSERTs - same statement, same columns, same duplicate handling as
+    // CHAR_INS_CHAR_SPELL - instead of one round trip each, which is what made saving a large population take minutes.
     constexpr uint32 SPELLS_PER_INSERT = 200;
     std::string newSpellRows;
     uint32 newSpellCount = 0;
@@ -7943,7 +7970,7 @@ void Player::_SaveSpells(CharacterDatabaseTransaction trans)
     {
         if (!newSpellCount)
             return;
-        newSpellRows.pop_back();
+        newSpellRows.pop_back(); // the trailing comma
         trans->Append("INSERT INTO character_spell (guid, spell, specMask) VALUES " + newSpellRows +
             " ON DUPLICATE KEY UPDATE specMask = VALUES(specMask)");
         newSpellRows.clear();

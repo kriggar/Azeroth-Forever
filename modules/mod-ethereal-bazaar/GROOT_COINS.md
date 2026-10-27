@@ -11,13 +11,15 @@ for **Bazaar Tokens** (item 975001). The feature lives in this module:
 | --- | --- | --- |
 | Coin item | 910001 | `GrootCoin::COIN_ITEM`, world migration `rev_20261012_60_groot_coin_item.sql` |
 | Coin display | 990001, custom icon `INV_GrootCoin` (needs the client patch) | same, plus `client-art/` |
-| RBAC: issue awards | 1001 `Command: groot award` | auth migration `rev_20261012_60_groot_coin_rbac.sql`, `RBAC.h` |
+| RBAC: issue awards | 1003 `Command: groot award` | auth migration `rev_20261012_60_groot_coin_rbac.sql`, `RBAC.h` |
 | RBAC: read the audit | 1002 `Command: groot audit` | same |
 | Tiraxis gossip actions | 9100-9199 (existing menus use 1-5) | `GrootCoinScripts.cpp` |
 | Exchange NPC | Tiraxis, entry 900007, script `npc_tiraxis` | unchanged |
 | Audit tables | `grootcoin_award`, `grootcoin_award_mail`, `grootcoin_exchange` (plus the queue `groot_coin_award_queue`) | characters migration `rev_20261012_60_groot_coin_audit.sql` |
 
-### Collision evidence (12 Oct 2026, read-only)
+The fork reserves RBAC 1001 for `Command: resettalents`. Groot awards use 1003; audit access remains 1002.
+
+### Upstream collision evidence (12 Oct 2026, read-only)
 
 - Local dev databases (`coa_dev_world`, `coa_dev_auth`, `coa_dev_characters`, MySQL 8.0.46):
   no `item_template` or `item_dbc` row for 910001; no `itemdisplayinfo_dbc` row for 990001 (the overlay
@@ -69,7 +71,7 @@ Nothing is granted by the migrations. An administrator grants each designated st
 the realm in question (check `.help rbac account grant` first; `-1` means every realm):
 
 ```
-.rbac account grant <staff-account> 1001 <realm-id>
+.rbac account grant <staff-account> 1003 <realm-id>
 .rbac account grant <staff-account> 1002 <realm-id>
 ```
 
@@ -124,7 +126,7 @@ the queue is not read and rows wait unchanged.
 | `character_guid` | requester | `characters.guid` of the character that receives the mail. |
 | `amount` | requester | Coins, 1 to `GrootCoin.MaxAward`. |
 | `reason` | requester | Shown in the mail and stored in the audit; 1-255 printable characters. |
-| `requested_by_account` | requester | Auth account id of the staff member approving it. Must pass the same gates as `.groot award` on this realm: Game Master (security 2+) and RBAC 1001 granted and not denied. It may own the character. Stored as the awarding account. |
+| `requested_by_account` | requester | Auth account id of the staff member approving it. Must pass the same gates as `.groot award` on this realm: Game Master (security 2+) and RBAC 1003 granted and not denied. It may own the character. Stored as the awarding account. |
 | `status` | server | `pending` (default), `done` or `failed`. |
 | `error` | server | Why a row failed. |
 | `award_id` | server | The `grootcoin_award` id that paid it; use `.groot inspect <award_id>`. |
@@ -154,7 +156,7 @@ How rows settle:
 - `done`: the coins are in the recipient's mailbox. The row is set `done` in the same transaction that writes
   the coin, the mail and the audit row, so `done` and the award exist together or not at all.
 - `failed`: nothing was sent. `error` says why: invalid source, reference, amount or reason; the character does
-  not exist or was deleted; the requester is not a Game Master or lacks RBAC 1001; or the reference was
+  not exist or was deleted; the requester is not a Game Master or lacks RBAC 1003; or the reference was
   already used for a different character or amount. Fix the cause and queue a new reference; failed rows are
   never retried.
 - `pending` after a poll: still being processed, or the outcome was unknown (database error, server stopped

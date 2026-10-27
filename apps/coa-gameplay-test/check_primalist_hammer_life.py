@@ -13,13 +13,8 @@ def main():
               for step in result['steps'] if step['action'] == 'snapshot'}
     for phase in ['first', 'highest', 'ap_sp']:
         expected = int(values[phase + '_hit']) * 20 // 100
-        offhand_expected = int(values[phase + '_offhand']) * 20 // 100
-        total_expected = (expected + offhand_expected) * 3
-        assert values[phase + '_heals'] == total_expected
-        assert 0 < values[phase + '_damage'] <= total_expected
-        print(f'{phase}: {values[phase + "_hit"]:g} main-hand + {values[phase + "_offhand"]:g} offhand melee '
-              f'damage, {expected + offhand_expected} per recipient, three of each (damage copy can be '
-              f'partially resisted, the heal copy cannot)')
+        assert values[phase + '_heals'] == values[phase + '_damage'] == expected * 3
+        print(f'{phase}: {values[phase + "_hit"]:g} melee damage, {expected} per recipient, three of each')
     for phase in ['baseline', 'removed']:
         assert values[phase + '_heals'] == values[phase + '_damage'] == 0
 

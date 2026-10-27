@@ -1,4 +1,5 @@
 #include "GrootCoinRules.h"
+#include "RBAC.h"
 #include <gtest/gtest.h>
 
 using namespace GrootCoin;
@@ -199,4 +200,14 @@ TEST(GrootCoinRules, DebitsUseSmallestStacksFirstAndNeverOverdraw)
     EXPECT_TRUE(PlanDebits(V{ 10, 3, 7 }, 21).empty());   // not enough: nothing is planned
     EXPECT_TRUE(PlanDebits(V{}, 1).empty());
     EXPECT_TRUE(PlanDebits(V{ 5 }, 0).empty());
+}
+
+TEST(GrootCoinRules, PermissionsPreserveTalentResetAndStayWithinTheRbacRange)
+{
+    EXPECT_EQ(rbac::RBAC_PERM_COMMAND_RESETTALENTS_SELF, 1001u);
+    EXPECT_NE(rbac::RBAC_PERM_COMMAND_GROOT_AWARD, rbac::RBAC_PERM_COMMAND_RESETTALENTS_SELF);
+    EXPECT_NE(rbac::RBAC_PERM_COMMAND_GROOT_AUDIT, rbac::RBAC_PERM_COMMAND_RESETTALENTS_SELF);
+    EXPECT_NE(rbac::RBAC_PERM_COMMAND_GROOT_AWARD, rbac::RBAC_PERM_COMMAND_GROOT_AUDIT);
+    EXPECT_LT(rbac::RBAC_PERM_COMMAND_GROOT_AWARD, rbac::RBAC_PERM_MAX);
+    EXPECT_LT(rbac::RBAC_PERM_COMMAND_GROOT_AUDIT, rbac::RBAC_PERM_MAX);
 }

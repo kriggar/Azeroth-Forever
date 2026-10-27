@@ -23,6 +23,19 @@ void WorldDatabaseConnection::DoPrepareStatements()
     if (!m_reconnecting)
         m_stmts.resize(MAX_WORLDDATABASE_STATEMENTS);
 
+    PrepareStatement(WORLD_SEL_AUCTION_BOT_ITEM_SOURCES,
+        "SELECT Item FROM creature_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM gameobject_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM reference_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM fishing_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM skinning_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM item_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM disenchant_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM prospecting_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM milling_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT Item FROM pickpocketing_loot_template WHERE Reference = 0 AND QuestRequired = 0 "
+        "UNION SELECT item FROM npc_vendor", CONNECTION_SYNCH);
+
     PrepareStatement(WORLD_SEL_ASCENSION_NPC_OVERHEAD_ICONS,
         "SELECT creature_entry, spell_id FROM ascension_npc_overhead_icons WHERE enabled = 1", CONNECTION_SYNCH);
 

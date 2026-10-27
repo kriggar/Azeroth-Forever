@@ -26,6 +26,8 @@ namespace
     std::shared_ptr<CreatureScaling::Settings const> Configured = std::make_shared<CreatureScaling::Settings>();
     std::shared_ptr<CreatureScaling::Settings const> Override;
     std::atomic<bool> Enabled = false;
+    std::atomic<CreatureScaling::CombatAuthority> Authority = nullptr;
+    std::atomic<CreatureScaling::CombatAuthority> HealthBudgetAuthority = nullptr;
     std::unordered_set<uint32> FlexHealthEntries;
 
     std::shared_ptr<CreatureScaling::Settings const> Active()
@@ -65,6 +67,14 @@ namespace
             map->IsRegularDifficulty(), map->IsRaid(), map->IsDungeon());
     }
 
+    bool OwnedElsewhere(CreatureScaling::Context context, Creature const* creature)
+    {
+        if (!CreatureScaling::CanBeHandedOver(context))
+            return false;
+        CreatureScaling::CombatAuthority const authority = Authority;
+        return authority && authority(creature);
+    }
+
     Creature const* ScaledAttacker(Unit const* target, Unit const* attacker, CreatureScaling::Context& context)
     {
         if (!Enabled || !target || !attacker || !target->GetCharmerOrOwnerPlayerOrPlayerItself())
@@ -83,7 +93,8 @@ namespace
         Creature const* creature = ScaledAttacker(target, attacker, context);
         if (!creature)
             return 1.0f;
-        return CreatureScaling::Multiplier((*Active()).*values, context, creature->GetMapId(), creature->GetLevel());
+        return CreatureScaling::Multiplier((*Active()).*values, context, creature->GetMapId(), creature->GetLevel(),
+            OwnedElsewhere(context, creature));
     }
 
     float DamageMultiplier(Unit const* target, Unit const* attacker)
@@ -100,7 +111,7 @@ namespace
         bool const weaponSpell = spellInfo && (spellInfo->DmgClass == SPELL_DAMAGE_CLASS_MELEE ||
             spellInfo->DmgClass == SPELL_DAMAGE_CLASS_RANGED);
         return CreatureScaling::SpellMultiplier(*Active(), context, creature->GetMapId(), creature->GetLevel(),
-            weaponSpell);
+            weaponSpell, OwnedElsewhere(context, creature));
     }
 
     template <typename T>
@@ -141,6 +152,25 @@ namespace
             "CoA.CreatureScaling.MapSpellDamage", CreatureScaling::FormatMapMultipliers(defaults.maps), false));
         return result;
     }
+}
+
+void CreatureScaling::SetCombatAuthority(CombatAuthority authority)
+{
+    Authority = authority;
+}
+
+void CreatureScaling::SetHealthBudgetAuthority(CombatAuthority authority)
+{
+    HealthBudgetAuthority = authority;
+}
+
+float CreatureScaling::HealthMultiplier(Creature const* creature)
+{
+    if (!Enabled || !IsEligible(creature) || HasFlexHealth(creature))
+        return 1.0f;
+    Context const context = ::ContextOf(creature);
+    return CreatureScaling::Multiplier(Active()->health, context, creature->GetMapId(), creature->GetLevel(),
+        OwnedElsewhere(context, creature));
 }
 
 float CreatureScaling::DamageMultiplier(Unit const* target, Unit const* attacker)
@@ -219,13 +249,9 @@ public:
 
     void OnCreatureSelectLevel(CreatureTemplate const*, Creature* creature) override
     {
-        if (!Enabled || !IsEligible(creature) || HasFlexHealth(creature))
-            return;
-        CreatureScaling::Context const context = ContextOf(creature);
-        if (context == CreatureScaling::Context::None)
-            return;
-        float const multiplier = CreatureScaling::Multiplier(Active()->health, context, creature->GetMapId(),
-            creature->GetLevel());
+        CreatureScaling::CombatAuthority const budgetAuthority = HealthBudgetAuthority;
+        float const multiplier = CreatureScaling::HookMultiplier(CreatureScaling::HealthMultiplier(creature),
+            budgetAuthority && budgetAuthority(creature));
         if (multiplier == 1.0f)
             return;
         uint32 const health = CreatureScaling::Scaled(creature->GetCreateHealth(), multiplier);

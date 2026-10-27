@@ -1253,6 +1253,11 @@ void Player::UpdateSkillsToMaxSkillsForLevel()
         uint32 pskill = itr->first;
         if (IsProfessionOrRidingSkill(pskill))
             continue;
+        // AlwaysMaxWeaponSkill: weapon skills and Defense only (CoA's Woodcutting / Woodworking are not professions
+        // in SkillLine and were maxed too)
+        SkillLineEntry const* skillLine = sSkillLineStore.LookupEntry(pskill);
+        if (pskill != SKILL_DEFENSE && (!skillLine || skillLine->categoryId != SKILL_CATEGORY_WEAPON))
+            continue;
         uint32 valueIndex = PLAYER_SKILL_VALUE_INDEX(itr->second.pos);
         uint32 data       = GetUInt32Value(valueIndex);
         uint32 max        = SKILL_MAX(data);
@@ -1904,9 +1909,6 @@ void Player::UpdateTriggerVisibility()
 
 void Player::UpdateForQuestWorldObjects()
 {
-    if (!GetSession() || GetSession()->IsHeadlessBot())
-        return;
-
     if (GetObjectVisibilityContainer().GetVisibleWorldObjectsMap()->empty())
         return;
 
@@ -1985,7 +1987,7 @@ void Player::UpdateTitansGrip()
         RemoveAurasDueToSpell(TitansGripStaffPenalty);
 
     // 10% damage reduce if 2x2h weapons are used
-    if (HasBurningCommander() || HasValkyrGrip() || !CanTitanGrip())
+    if (HasBurningCommander() || !CanTitanGrip())
         RemoveAurasDueToSpell(49152);
     else if (Aura* aur = GetAura(49152))
         aur->RecalculateAmountOfEffects();

@@ -331,8 +331,8 @@ struct PlayerInfo
     float positionY{0.0f};
     float positionZ{0.0f};
     float orientation{0.0f};
-    uint16 displayId_m{0};
-    uint16 displayId_f{0};
+    uint32 displayId_m{0}; // custom race display ids go above 65535
+    uint32 displayId_f{0};
     PlayerCreateInfoItems item;
     PlayerCreateInfoSpells customSpells;
     PlayerCreateInfoSpells  castSpells;
@@ -891,6 +891,7 @@ enum PlayerLoginQueryIndex
     PLAYER_LOGIN_QUERY_LOAD_CHARACTER_SETTINGS           = 36,
     PLAYER_LOGIN_QUERY_LOAD_PET_SLOTS                    = 37,
     PLAYER_LOGIN_QUERY_LOAD_OFFLINE_ACHIEVEMENTS_UPDATES = 38,
+    PLAYER_LOGIN_QUERY_LOAD_PORTABLE_SESSION             = 39,
     MAX_PLAYER_LOGIN_QUERY
 };
 
@@ -1510,7 +1511,7 @@ public:
     void RemoveRewardedQuest(uint32 questId, bool update = true);
     void SendQuestUpdate(uint32 questId);
     QuestGiverStatus GetQuestDialogStatus(Object* questGiver, uint32 questFilter = 0);
-    float GetQuestRate(bool isDFQuest = false, int32 questLevel = 0);
+    float GetQuestRate(bool isDFQuest = false, int32 questLevel = 0, Quest const* quest = nullptr);
     void SetDailyQuestStatus(uint32 quest_id);
     bool IsDailyQuestDone(uint32 quest_id);
     void SetWeeklyQuestStatus(uint32 quest_id);
@@ -2082,6 +2083,7 @@ public:
     void RemovedInsignia(Player* looterPlr);
 
     [[nodiscard]] WorldSession* GetSession() const { return m_session; }
+    [[nodiscard]] bool IsBot() const;
     void SetSession(WorldSession* sess) { m_session = sess; }
 
     void BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) override;

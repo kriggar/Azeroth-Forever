@@ -3,54 +3,54 @@
 -- Every statement writes fixed values, so a reapply leaves the result unchanged.
 
 -- Stones of Retreat: 350
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 350
-WHERE it.`name` LIKE 'Stone of Retreat:%';
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 350
+WHERE `it`.`name` LIKE 'Stone of Retreat:%';
 
 -- Transmog sets, priced by how many pieces the cache holds (ethereal_bazaar_set_cache):
 -- 8 or more (full set) 3200, 4-7 pieces 2700, 1-3 pieces 2200.
 -- Not the Demon Hunter horn options, which share the "cosmetic set" wording.
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-JOIN (SELECT `cache_item`, COUNT(*) AS `pieces` FROM `ethereal_bazaar_set_cache` GROUP BY `cache_item`) sc
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+JOIN (SELECT `cache_item`, COUNT(*) AS `pieces` FROM `ethereal_bazaar_set_cache` GROUP BY `cache_item`) `sc`
   ON sc.`cache_item` = v.`ItemID`
-SET v.`BazaarTokenCost` = CASE WHEN sc.`pieces` >= 8 THEN 3200 WHEN sc.`pieces` >= 4 THEN 2700 ELSE 2200 END
-WHERE it.`description` LIKE '%cosmetic set%' AND it.`description` NOT LIKE '%Demon Hunter horns%'
+SET `v`.`BazaarTokenCost` = CASE WHEN `sc`.`pieces` >= 8 THEN 3200 WHEN `sc`.`pieces` >= 4 THEN 2700 ELSE 2200 END
+WHERE `it`.`description` LIKE '%cosmetic set%' AND `it`.`description` NOT LIKE '%Demon Hunter horns%'
   AND it.`name` NOT LIKE 'Stone of Retreat:%';
 
 -- Weapons: one-hand 1500, two-hand and ranged 2200
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 1500
-WHERE it.`class` = 2 AND it.`InventoryType` IN (13, 21, 22);
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 2200
-WHERE it.`class` = 2 AND it.`InventoryType` IN (17, 15, 25, 26);
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 1500
+WHERE `it`.`class` = 2 AND `it`.`InventoryType` IN (13, 21, 22);
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 2200
+WHERE `it`.`class` = 2 AND `it`.`InventoryType` IN (17, 15, 25, 26);
 
 -- Pets (companions and tamed-pet items): 1500
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 1500
-WHERE (it.`class` = 15 AND it.`subclass` = 2)
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 1500
+WHERE (`it`.`class` = 15 AND `it`.`subclass` = 2)
    OR it.`name` LIKE 'Beastmaster''s Whistle:%' OR it.`name` LIKE 'Elemental Lodestone:%'
    OR it.`name` LIKE 'Summoner''s Stone:%' OR it.`name` LIKE 'Blood Soaked Vellum:%'
    OR it.`name` LIKE 'Draconic Warhorn:%';
 
 -- Mounts: 3800
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 3800
-WHERE it.`class` = 15 AND it.`subclass` = 5;
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 3800
+WHERE `it`.`class` = 15 AND `it`.`subclass` = 5;
 
 -- Other caches whose contents are only weapons and armor (sets and dual-wield pairs without the
 -- "cosmetic set" wording): same piece-count prices. Key containers, raid markers and toys keep theirs.
-UPDATE `coa_client_vanity_collection` v
-JOIN (SELECT s.`cache_item`, COUNT(*) AS `pieces`, SUM(mi.`class` NOT IN (2, 4) OR mi.`class` IS NULL) AS `other`
-      FROM `ethereal_bazaar_set_cache` s LEFT JOIN `item_template` mi ON mi.`entry` = s.`member_item`
-      GROUP BY s.`cache_item`) sc ON sc.`cache_item` = v.`ItemID`
-SET v.`BazaarTokenCost` = CASE WHEN sc.`pieces` >= 8 THEN 3200 WHEN sc.`pieces` >= 4 THEN 2700 ELSE 2200 END
-WHERE sc.`other` = 0;
+UPDATE `coa_client_vanity_collection` `v`
+JOIN (SELECT `s`.`cache_item`, COUNT(*) AS `pieces`, SUM(`mi`.`class` NOT IN (2, 4) OR `mi`.`class` IS NULL) AS `other`
+      FROM `ethereal_bazaar_set_cache` `s` LEFT JOIN `item_template` `mi` ON `mi`.`entry` = `s`.`member_item`
+      GROUP BY `s`.`cache_item`) `sc` ON `sc`.`cache_item` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = CASE WHEN `sc`.`pieces` >= 8 THEN 3200 WHEN `sc`.`pieces` >= 4 THEN 2700 ELSE 2200 END
+WHERE `sc`.`other` = 0;
 
 -- Shields and held-in-off-hand items: the one-hand price, 1500
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 1500
-WHERE it.`InventoryType` IN (14, 23);
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 1500
+WHERE `it`.`InventoryType` IN (14, 23);
 
 -- Raid Marker - Bundle: 2000; Dwayne (a companion in a box): the pet price, 1500
 UPDATE `coa_client_vanity_collection` SET `BazaarTokenCost` = 2000 WHERE `ItemID` = 499428;
@@ -221,10 +221,10 @@ DELETE FROM `coa_client_vanity_collection` WHERE `ItemID` IN (
 
 -- Single armor pieces (not caches, not shields or off-hands):
 -- head, shoulders, chest, robe, legs 1000; waist, feet, wrist, hands, back 600; shirts and tabards 800.
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = CASE WHEN it.`InventoryType` IN (1, 3, 5, 7, 20) THEN 1000
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = CASE WHEN `it`.`InventoryType` IN (1, 3, 5, 7, 20) THEN 1000
                                WHEN it.`InventoryType` IN (4, 19) THEN 800 ELSE 600 END
-WHERE it.`class` = 4 AND it.`InventoryType` IN (1, 3, 4, 5, 6, 7, 8, 9, 10, 16, 19, 20)
+WHERE `it`.`class` = 4 AND `it`.`InventoryType` IN (1, 3, 4, 5, 6, 7, 8, 9, 10, 16, 19, 20)
   AND v.`ItemID` NOT IN (SELECT `cache_item` FROM `ethereal_bazaar_set_cache`);
 
 -- Trinkets, necks and rings are no longer sold
@@ -240,14 +240,14 @@ DELETE FROM `coa_client_vanity_collection` WHERE `ItemID` IN (
 );
 
 -- Manastorm items are no longer sold
-DELETE v FROM `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-WHERE it.`description` LIKE '%|cff33fff0Manastorm%';
+DELETE `v` FROM `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+WHERE `it`.`description` LIKE '%|cff33fff0Manastorm%';
 
 -- Aura of Experience and Potion of Experience are sold again, at Tiraxis' prices (350 and 100).
 -- Only on a realm that fills the table: on an empty one these two rows would be the whole store.
 INSERT INTO `coa_client_vanity_collection` (`ItemID`, `DonationPointCost`, `SeasonalPointCost`, `BazaarTokenCost`)
-SELECT n.`ItemID`, 0, 0, n.`BazaarTokenCost`
-FROM (SELECT 818059 AS `ItemID`, 350 AS `BazaarTokenCost` UNION ALL SELECT 818046, 100) n  -- Aura, Potion of Experience
+SELECT `n`.`ItemID`, 0, 0, `n`.`BazaarTokenCost`
+FROM (SELECT 818059 AS `ItemID`, 350 AS `BazaarTokenCost` UNION ALL SELECT 818046, 100) `n`  -- Aura, Potion of Experience
 WHERE EXISTS (SELECT 1 FROM `coa_client_vanity_collection` WHERE `ItemID` NOT IN (818059, 818046))
 ON DUPLICATE KEY UPDATE `BazaarTokenCost` = VALUES(`BazaarTokenCost`);
 
@@ -259,8 +259,8 @@ DELETE FROM `coa_client_vanity_collection` WHERE `ItemID` IN (
 );
 
 -- Misc cosmetics
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = CASE
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = CASE
     WHEN it.`name` LIKE 'Demon Scroll:%' THEN 1000
     WHEN it.`class` = 15 AND it.`subclass` = 4 AND it.`name` LIKE '%Wings%' THEN 3500
     WHEN it.`class` = 15 AND it.`subclass` = 4 AND it.`name` REGEXP 'Backpack|Satchel|Knapsack|Pouch|Pack$|Satch-Shell|Quiver|Bait Box|Tacklebox|Tidal Trunk|Verdant Vault|Verdant Vessel|Crimson Cargo' THEN 2500
@@ -276,7 +276,7 @@ SET v.`BazaarTokenCost` = CASE
       OR it.`name` IN ('Sunwell Seeker''s Horned Memento', 'Triumphant Warlock''s Grimhorns') THEN 1250
     WHEN it.`class` = 0 AND it.`subclass` = 0 AND (it.`name` LIKE '% Aura' OR it.`name` LIKE 'Aura of the %') THEN 2000
     ELSE v.`BazaarTokenCost` END
-WHERE it.`name` LIKE 'Demon Scroll:%' OR it.`name` LIKE 'Illusion:%' OR it.`name` LIKE '%Incarnation:%'
+WHERE `it`.`name` LIKE 'Demon Scroll:%' OR `it`.`name` LIKE 'Illusion:%' OR `it`.`name` LIKE '%Incarnation:%'
    OR it.`name` LIKE '%Mana-forged Barrier' OR it.`name` LIKE 'Demon Horns - %' OR it.`name` LIKE 'Horns of The Ascended %'
    OR it.`name` IN ('Sunwell Seeker''s Horned Memento', 'Triumphant Warlock''s Grimhorns')
    OR (it.`class` = 15 AND (it.`name` LIKE '%Altar%' OR it.`name` LIKE '% Blink' OR it.`name` LIKE '% Life Tap' OR it.`name` LIKE '% Shadow Form'))
@@ -284,8 +284,8 @@ WHERE it.`name` LIKE 'Demon Scroll:%' OR it.`name` LIKE 'Illusion:%' OR it.`name
    OR (it.`class` = 0 AND it.`subclass` = 0 AND (it.`name` LIKE '% Aura' OR it.`name` LIKE 'Aura of the %'));
 
 -- Blooming Wakes, Embraces and Cloaks of the Heavens are no longer sold
-DELETE v FROM `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-WHERE it.`class` = 15 AND it.`subclass` = 4
+DELETE `v` FROM `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+WHERE `it`.`class` = 15 AND `it`.`subclass` = 4
   AND (it.`name` LIKE '%Matriarch''s Blooming Wake' OR it.`name` LIKE '%Embrace%' OR it.`name` LIKE '%Cloak of the Heavens');
 
 -- Profession and utility items: Tiraxis' prices where he sells them (900008), 500-700 for the rest
@@ -323,14 +323,14 @@ UPDATE `coa_client_vanity_collection` SET `BazaarTokenCost` = 1000 WHERE `ItemID
   507858, 507860, 507861, 507862, 507863, 507864); -- Daisy, Zul'kara, Dart, Kevin, Roko, Kahun
 
 -- Wind Shear visuals: the Blink price, 1200
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 1200
-WHERE it.`class` = 15 AND it.`name` LIKE '% Wind Shear';
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 1200
+WHERE `it`.`class` = 15 AND `it`.`name` LIKE '% Wind Shear';
 
 -- Tomes: 1200 (not the Soaring Spelltome mount or the Watcher of Tomes pet)
-UPDATE `coa_client_vanity_collection` v JOIN `item_template` it ON it.`entry` = v.`ItemID`
-SET v.`BazaarTokenCost` = 1200
-WHERE it.`name` LIKE 'Tome of %' OR it.`name` IN ('Felforged Tome: Track Humanoids', 'Flamebender''s Tome');
+UPDATE `coa_client_vanity_collection` `v` JOIN `item_template` `it` ON `it`.`entry` = `v`.`ItemID`
+SET `v`.`BazaarTokenCost` = 1200
+WHERE `it`.`name` LIKE 'Tome of %' OR `it`.`name` IN ('Felforged Tome: Track Humanoids', 'Flamebender''s Tome');
 
 -- Watcher of Tomes is a pet: 1500 (Reins of the Soaring Spelltome is already at the mount price)
 UPDATE `coa_client_vanity_collection` SET `BazaarTokenCost` = 1500 WHERE `ItemID` = 354472;

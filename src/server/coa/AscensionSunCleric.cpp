@@ -1,6 +1,7 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 #include "AscensionSunCleric.h"
 #include "AscensionSunClericData.h"
+#include "AscensionCustomResourceData.h"
 #include "CellImpl.h"
 #include "GameTime.h"
 #include "GridNotifiers.h"
@@ -246,7 +247,8 @@ bool Resource(Player* player, uint32 id, int32 delta)
         return false;
     if (delta > 0 && (player->HasAura(Dawn) || State(player).dawnEvent))
         return true;
-    uint32 after = uint32(std::clamp<int64>(int64(Count(player, id)) + delta, 0, 20));
+    uint32 after = uint32(std::clamp<int64>(int64(Count(player, id)) + delta, 0,
+        int64(AscensionCompatData::SUN_CLERIC_SOLAR_POWER_MAX)));
     if (!after)
         player->RemoveAurasDueToSpell(id);
     else if (Aura* aura = player->GetAura(id))
@@ -280,11 +282,11 @@ void ActivateDawn(Player* player)
                 Cast(player, player, helper);
     Refresh(player);
 }
-void Fulfill(Player* player, Spell* spell, Spell* guard, Unit* target)
+void Fulfill(Player* player, Spell* spell, Unit* target)
 {
-    if (!spell || !guard || !spell->GetScriptValue(Dawn) || guard->GetScriptValue(807441))
+    if (!spell || !spell->GetScriptValue(Dawn) || spell->GetScriptValue(807441))
         return;
-    guard->SetScriptValue(807441, 1);
+    spell->SetScriptValue(807441, 1);
     if (player->HasAura(805581))
         Reduce(player, 500154, std::abs(Amount(807445)));
     if (player->HasAura(680622))
@@ -354,7 +356,7 @@ void Refresh(Player* player)
                                 std::pair(805267u, 807876u), std::pair(300314u, 301341u)})
         KeepHelper(player, helper, healthy && player->HasAura(talent));
     bool day = player->IsAlive() && Daytime();
-    KeepHelper(player, 707768, day && player->HasAura(707078));
+    SetHelper(player, 707768, day && player->HasAura(707078));
     int32 extraHaste = 0;
     for (uint32 id : {300363, 300621, 300626})
         if (player->HasAura(id))
@@ -377,13 +379,6 @@ void Refresh(Player* player)
             player->SetTemporarySpellReplacement(pair.first, replacement ? 504764 : 0);
     if (!replacement)
         player->removeSpell(504764, SPEC_MASK_ALL, true);
-    bool conversion = player->IsAlive() && player->HasAura(Dawn) && player->HasSpell(DawnCast);
-    if (conversion && !player->HasSpell(RadiantConversion))
-        player->learnSpellWithoutAnnouncement(RadiantConversion);
-    if (player->HasSpell(DawnCast))
-        player->SetTemporarySpellReplacement(DawnCast, conversion ? RadiantConversion : 0);
-    if (!conversion)
-        player->removeSpell(RadiantConversion, SPEC_MASK_ALL, true);
     if (!player->IsInCombat())
         state.firstAttacks.clear();
     state.refreshing = false;

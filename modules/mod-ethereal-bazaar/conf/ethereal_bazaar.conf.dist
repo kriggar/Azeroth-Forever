@@ -77,7 +77,7 @@ EtherealBazaar.Tokens.Announce = 0
 # coins already held and every audit record stay. See
 # modules/mod-ethereal-bazaar/GROOT_COINS.md.
 
-# .groot award. Also needs RBAC permission 1001 and Game Master security.
+# .groot award. Also needs RBAC permission 1003 and Game Master security.
 # Default: 0 (off)
 GrootCoin.Enable = 0
 

@@ -14,9 +14,16 @@ DELETE FROM `creature_questender` WHERE `quest` IN (1660083, 1660084);
 INSERT INTO `creature_questender` (`id`, `quest`) VALUES (162933, 1660084), (162933, 1660083);
 
 -- A Sinister Family: 8 hissers, 25 spiders, 5 bats. Bats and Lifedrinkers count for the bat credit 163814.
-DELETE FROM `creature_template` WHERE `entry` = 163814;
 INSERT INTO `creature_template` (`entry`, `name`, `minlevel`, `maxlevel`, `faction`, `unit_class`, `type`, `flags_extra`) VALUES
-(163814, 'Bat of the Other Side', 15, 15, 35, 1, 1, 128);
+(163814, 'Bat of the Other Side', 15, 15, 35, 1, 1, 128)
+ON DUPLICATE KEY UPDATE
+`name` = VALUES(`name`),
+`minlevel` = VALUES(`minlevel`),
+`maxlevel` = VALUES(`maxlevel`),
+`faction` = VALUES(`faction`),
+`unit_class` = VALUES(`unit_class`),
+`type` = VALUES(`type`),
+`flags_extra` = VALUES(`flags_extra`);
 DELETE FROM `creature_template_model` WHERE `CreatureID` = 163814;
 INSERT INTO `creature_template_model` (`CreatureID`, `Idx`, `CreatureDisplayID`, `DisplayScale`, `Probability`) VALUES
 (163814, 0, 11686, 1, 1);

@@ -16,6 +16,10 @@
  */
 
 #include "Player.h"
+#include "CoaCustomRacials.h"
+#include "AscensionSpellCopy.h"
+#include "AscensionIncarnation.h"
+
 #include "AscensionQuestMarkers.h"
 #include "AccountMgr.h"
 #include "AchievementMgr.h"
@@ -24,8 +28,8 @@
 #include "ArenaTeam.h"
 #include "ArenaTeamMgr.h"
 #include "ArenaSeasonMgr.h"
+#include "AscensionIncarnation.h"
 #include "AscensionPooledVitality.h"
-#include "AscensionVanityOwnership.h"
 #include "Battlefield.h"
 #include "BattlefieldMgr.h"
 #include "BattlefieldWG.h"
@@ -43,6 +47,7 @@
 #include "Common.h"
 #include "ConditionMgr.h"
 #include "Config.h"
+#include "Creature.h"
 #include "CreatureAI.h"
 #include "DatabaseEnv.h"
 #include "DisableMgr.h"
@@ -63,6 +68,7 @@
 #include "LocalLevelScaling.h"
 #include "Log.h"
 #include "LootItemStorage.h"
+#include "LootMgr.h"
 #include "MapMgr.h"
 #include "MiscPackets.h"
 #include "ObjectAccessor.h"
@@ -554,7 +560,14 @@ bool Player::Create(ObjectGuid::LowType guidlow, CharacterCreateInfo* createInfo
         return false;
     }
 
-    SetMap(sMapMgr->CreateMap(info->mapId, this));
+    Map* map = sMapMgr->CreateMap(info->mapId, this);
+    if (!map)
+    {
+        LOG_ERROR("entities.player", "Player::Create: Account {} character '{}' race/class {}/{} has no map {} - refusing instead of aborting the world thread.",
+            GetSession()->GetAccountId(), m_name, createInfo->Race, createInfo->Class, info->mapId);
+        return false;
+    }
+    SetMap(map);
 
     uint8 powertype = uint8(LiveClassResourcePolicy::DefaultPowerForClass(createInfo->Class, cEntry->powerType));
 
@@ -594,6 +607,13 @@ bool Player::Create(ObjectGuid::LowType guidlow, CharacterCreateInfo* createInfo
                                     (0x00 << 16) |
                                     (((GetSession()->IsARecruiter() || GetSession()->GetRecruiterId() != 0) ? REST_STATE_RAF_LINKED : REST_STATE_NOT_RAF_LINKED) << 24)));
     SetByteValue(PLAYER_BYTES_3, 0, createInfo->Gender);
+    if (UsesExtendedAppearance(createInfo->Race))         // CoA: Esteria sixth appearance byte
+        SetByteValue(UNIT_FIELD_PADDING, 0, createInfo->OutfitId);
+    else if (UsesHaranirAppearance(createInfo->Race))
+    {
+        SetUInt32Value(UNIT_FIELD_PADDING, uint32(createInfo->HaranirExtra));
+        SetUInt32Value(OBJECT_FIELD_PADDING, uint32(createInfo->HaranirExtra >> 32));
+    }
     SetByteValue(PLAYER_BYTES_3, 3, 0);                     // BattlefieldArenaFaction (0 or 1)
 
     SetUInt32Value(PLAYER_GUILDID, 0);
@@ -1349,6 +1369,9 @@ bool Player::BuildEnumData(PreparedQueryResult result, WorldPacket* data)
     *data << uint32(petFamily);
 
     std::vector<std::string_view> equipment = Acore::Tokenize(fields[22].Get<std::string_view>(), ' ', false);
+    // Custom races that wear an NPC look in game (Murloc): the character screen paints armor with the human body
+    // layout on their model, so only their weapons are listed.
+    bool const weaponsOnly = HasAscensionCustomRaceDisplay(plrRace, gender);
     for (uint8 slot = 0; slot < INVENTORY_SLOT_BAG_END; ++slot)
     {
         uint32 const visualBase = slot * 2;
@@ -1357,6 +1380,8 @@ bool Player::BuildEnumData(PreparedQueryResult result, WorldPacket* data)
         if (visualBase < equipment.size())
         {
             itemId = Acore::StringTo<uint32>(equipment[visualBase]);
+            if (weaponsOnly && slot != EQUIPMENT_SLOT_MAINHAND && slot != EQUIPMENT_SLOT_OFFHAND && slot != EQUIPMENT_SLOT_RANGED)
+                itemId = 0u;                      // shown empty, no warning
         }
 
         ItemTemplate const* proto = nullptr;
@@ -4294,19 +4319,28 @@ void Player::DestroyForPlayer(Player* target, bool onDeath) const
 bool Player::HasSpell(uint32 spell) const
 {
     PlayerSpellMap::const_iterator itr = m_spells.find(spell);
-    return (itr != m_spells.end() && itr->second->State != PLAYERSPELL_REMOVED && itr->second->IsInSpec(m_activeSpec));
+    if (itr != m_spells.end() && itr->second->State != PLAYERSPELL_REMOVED && itr->second->IsInSpec(m_activeSpec))
+        return true;
+    uint32 copy = GetAscensionSpellCopy(spell); // Bronzebeard copy (vanilla classes)
+    return copy && HasSpell(copy);
 }
 
 bool Player::HasTalent(uint32 spell, uint8 spec) const
 {
     PlayerTalentMap::const_iterator itr = m_talents.find(spell);
-    return (itr != m_talents.end() && itr->second->State != PLAYERSPELL_REMOVED && itr->second->IsInSpec(spec));
+    if (itr != m_talents.end() && itr->second->State != PLAYERSPELL_REMOVED && itr->second->IsInSpec(spec))
+        return true;
+    uint32 copy = GetAscensionSpellCopy(spell); // Bronzebeard copy (vanilla classes)
+    return copy && HasTalent(copy, spec);
 }
 
 bool Player::HasActiveSpell(uint32 spell) const
 {
     PlayerSpellMap::const_iterator itr = m_spells.find(spell);
-    return (itr != m_spells.end() && itr->second->State != PLAYERSPELL_REMOVED && itr->second->Active && itr->second->IsInSpec(m_activeSpec));
+    if (itr != m_spells.end() && itr->second->State != PLAYERSPELL_REMOVED && itr->second->Active && itr->second->IsInSpec(m_activeSpec))
+        return true;
+    uint32 copy = GetAscensionSpellCopy(spell); // Bronzebeard copy (vanilla classes)
+    return copy && HasActiveSpell(copy);
 }
 
 /**
@@ -7417,9 +7451,8 @@ void Player::_ApplyWeaponDamage(uint8 slot, ItemTemplate const* proto, ScalingSt
             SetAttackTime(OFF_ATTACK, apply ? proto->Delay : BASE_ATTACK_TIME);
     }
 
-    // No need to modify any physical damage for ferals whose form overrides attack speed:
-    // their damage is calculated from stats only
-    if (IsInFeralForm() && IsAttackSpeedOverridenShapeShift())
+    // No need to modify any physical damage for ferals as it is calculated from stats only
+    if (IsInFeralForm())
         return;
 
     if (CanModifyStats() && (GetWeaponDamageRange(attType, MAXDAMAGE) || proto->Delay))
@@ -11335,6 +11368,17 @@ void Player::InitDisplayIds()
             LOG_ERROR("entities.player", "Invalid gender {} for player", gender);
             return;
     }
+
+    // SetDisplayId takes the gender of the model's creature_model_info row; a player keeps its own.
+    SetByteValue(UNIT_FIELD_BYTES_0, 2, gender);
+
+    // Custom races without a dressable player model wear an NPC look picked by skin colour.
+    if (uint32 customDisplay = GetAscensionCustomRaceDisplay(this))
+    {
+        SetDisplayId(customDisplay);
+        SetNativeDisplayId(customDisplay);
+        SetByteValue(UNIT_FIELD_BYTES_0, 2, gender);
+    }
 }
 
 inline bool Player::_StoreOrEquipNewItem(uint32 vendorslot, uint32 item, uint8 count, uint8 bag, uint8 slot, int32 price, ItemTemplate const* pProto, Creature* pVendor, VendorItem const* crItem, bool bStore)
@@ -11575,10 +11619,6 @@ bool Player::BuyItemFromVendorSlot(ObjectGuid vendorguid, uint32 vendorslot, uin
         SendEquipError(EQUIP_ERR_ITEM_DOESNT_GO_TO_SLOT, nullptr, nullptr);
         return false;
     }
-
-    // A vanity item joins the account collection when stored; refresh the open list so it disappears
-    if (AscensionVanityOwnership::OwnsItem(this, item))
-        GetSession()->SendListInventory(vendorguid, GetSession()->GetCurrentVendor());
 
     return crItem->maxcount != 0;
 }
@@ -12327,6 +12367,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
     SendUnlearnSpells();
 
     SendInitialActionButtons();
+    m_reputationMgr->ApplyStartingZoneReputation();
     m_reputationMgr->SendInitialReputations();
     m_achievementMgr->SendAllAchievementData();
 
@@ -12668,7 +12709,9 @@ void Player::LearnDefaultSkill(uint32 skillId, uint16 rank)
         {
             uint16 skillValue = 1;
             uint16 maxValue = GetMaxSkillValueForLevel();
-            if (sWorld->getBoolConfig(CONFIG_ALWAYS_MAXSKILL) && !IsProfessionOrRidingSkill(skillId))
+            SkillLineEntry const* maxLine = sSkillLineStore.LookupEntry(skillId);
+            if (sWorld->getBoolConfig(CONFIG_ALWAYS_MAXSKILL) && !IsProfessionOrRidingSkill(skillId) &&
+                (skillId == SKILL_DEFENSE || (maxLine && maxLine->categoryId == SKILL_CATEGORY_WEAPON)))
             {
                 skillValue = maxValue;
             }
@@ -12772,6 +12815,10 @@ void Player::learnQuestRewardedSpells()
 
 void Player::learnSkillRewardedSpells(uint32 skill_id, uint32 skill_value)
 {
+    // CoA Custom: the added races have their own racials, never the vanilla racial lines (shared mask bits)
+    if (sConfigMgr->GetOption<bool>("CoACustomRaces.Enable", false) && GetCoaCustomRacial(getRace()) && IsCoaVanillaRacialSkill(skill_id))
+        return;
+
     uint32 raceMask  = getRaceMask();
     uint32 classMask = getClassMask();
 
@@ -12851,9 +12898,6 @@ void Player::learnSkillRewardedSpells(uint32 skill_id, uint32 skill_value)
 void Player::GetAurasForTarget(Unit* target, bool force /*= false*/)
 {
     if (!target || (!force && target->GetVisibleAuras()->empty()))    // speedup things
-        return;
-
-    if (GetSession()->IsHeadlessBot())
         return;
 
     WorldPacket data(SMSG_AURA_UPDATE_ALL);
@@ -16085,6 +16129,22 @@ void Player::_SaveCharacter(bool create, CharacterDatabaseTransaction trans)
     }
 
     trans->Append(stmt);
+
+    if (UsesExtendedAppearance(getRace(true)))
+    {
+        CharacterDatabasePreparedStatement* appStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_EXTENDED_APPEARANCE);
+        appStmt->SetData(0, uint64(GetByteValue(UNIT_FIELD_PADDING, 0)));
+        appStmt->SetData(1, GetGUID().GetRawValue());
+        trans->Append(appStmt);
+    }
+    else if (UsesHaranirAppearance(getRace(true)))
+    {
+        uint64 haranirExtra = uint64(GetUInt32Value(UNIT_FIELD_PADDING)) | (uint64(GetUInt32Value(OBJECT_FIELD_PADDING)) << 32);
+        CharacterDatabasePreparedStatement* appStmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_EXTENDED_APPEARANCE);
+        appStmt->SetData(0, haranirExtra);
+        appStmt->SetData(1, GetGUID().GetRawValue());
+        trans->Append(appStmt);
+    }
 }
 
 void Player::_LoadGlyphs(PreparedQueryResult result)
@@ -17322,9 +17382,11 @@ uint16 Player::GetMaxSkillValueForLevel() const
     return result;
 }
 
-float Player::GetQuestRate(bool isDFQuest, int32 questLevel)
+float Player::GetQuestRate(bool isDFQuest, int32 questLevel, Quest const* quest)
 {
     float result = Acore::XP::QuestRate(isDFQuest, questLevel, GetLevel());
+
+    result = LocalLevelScaling::GetEffectiveQuestRewardRate(this, quest, result);
 
     sScriptMgr->OnPlayerGetQuestRate(this, result);
 
@@ -17659,4 +17721,9 @@ std::string Player::GetDebugInfo() const
 void Player::SendSystemMessage(std::string_view msg, bool escapeCharacters)
 {
     ChatHandler(GetSession()).SendSysMessage(msg, escapeCharacters);
+}
+
+bool Player::IsBot() const
+{
+    return m_session && m_session->IsBot();
 }

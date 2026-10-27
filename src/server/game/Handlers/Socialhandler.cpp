@@ -71,8 +71,7 @@ void WorldSession::HandleAddFriendOpcode(WorldPacket& recv_data)
     {
         if (friendGuid)
         {
-            if (friendGuid == GetPlayer()->GetGUID() ||
-                (GetPlayer()->GetSocial()->UsesAccountFriends() && friendAccountId == GetAccountId()))
+            if (friendGuid == GetPlayer()->GetGUID())
                 friendResult = FRIEND_SELF;
             else if (GetPlayer()->GetTeamId() != teamId && !HasPermission(rbac::RBAC_PERM_TWO_SIDE_ADD_FRIEND))
                 friendResult = FRIEND_ENEMY;
@@ -90,14 +89,11 @@ void WorldSession::HandleAddFriendOpcode(WorldPacket& recv_data)
                 else
                 friendResult = FRIEND_LIST_FULL;
             }
-            if (!GetPlayer()->GetSocial()->UsesAccountFriends())
-                GetPlayer()->GetSocial()->SetFriendNote(friendGuid, friendNote);
+            GetPlayer()->GetSocial()->SetFriendNote(friendGuid, friendNote);
         }
     }
 
     sSocialMgr->SendFriendStatus(GetPlayer(), friendResult, friendGuid, false);
-    if (GetPlayer()->GetSocial()->UsesAccountFriends())
-        GetPlayer()->GetSocial()->SendSocialList(GetPlayer(), SOCIAL_FLAG_ALL);
 
     LOG_DEBUG("network", "WORLD: Sent (SMSG_FRIEND_STATUS)");
 }
@@ -110,8 +106,6 @@ void WorldSession::HandleDelFriendOpcode(WorldPacket& recv_data)
     _player->GetSocial()->RemoveFromSocialList(FriendGUID, SOCIAL_FLAG_FRIEND);
 
     sSocialMgr->SendFriendStatus(GetPlayer(), FRIEND_REMOVED, FriendGUID, false);
-    if (GetPlayer()->GetSocial()->UsesAccountFriends())
-        GetPlayer()->GetSocial()->SendSocialList(GetPlayer(), SOCIAL_FLAG_ALL);
 
     LOG_DEBUG("network", "WORLD: Sent motd (SMSG_FRIEND_STATUS)");
 }
@@ -166,6 +160,4 @@ void WorldSession::HandleSetContactNotesOpcode(WorldPacket& recv_data)
     std::string note;
     recv_data >> guid >> note;
     _player->GetSocial()->SetFriendNote(guid, note);
-    if (_player->GetSocial()->UsesAccountFriends())
-        _player->GetSocial()->SendSocialList(_player, SOCIAL_FLAG_ALL);
 }

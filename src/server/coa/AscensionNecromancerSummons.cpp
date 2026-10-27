@@ -384,11 +384,10 @@ class npc_ascension_necromancer : public ScriptedAI
     float _inheritedSpeed = 1.0f;
     float _followRange = 0.0f;
     bool _travelling = false;
-    bool _charmed = false;
 
     bool Pacified(Player const* player) const
     {
-        return _travelling || player->HasAura(500983) || player->IsCharmed();
+        return _travelling || player->HasAura(500983);
     }
     void IsSummonedBy(WorldObject* summoner) override
     {
@@ -405,7 +404,7 @@ class npc_ascension_necromancer : public ScriptedAI
         }
         me->SetOwnerGUID(_owner);
         me->SetCreatorGUID(_owner);
-        me->SetFaction(player->IsCharmed() ? player->GetOldFactionId() : player->GetFaction());
+        me->SetFaction(player->GetFaction());
         me->SetReactState(REACT_DEFENSIVE);
         me->SetCombatMovement(!Stationary(me->GetEntry()) && !Ranged(me->GetEntry()));
         State(player).minions.push_back({me->GetGUID(), _spell, _cost});
@@ -637,11 +636,6 @@ class npc_ascension_necromancer : public ScriptedAI
         {
             _travelling = travelling;
             me->SetImmuneToNPC(travelling);
-            _events.RescheduleEvent(1, 1ms);
-        }
-        if (bool charmed = player->IsCharmed(); charmed != _charmed)
-        {
-            _charmed = charmed;
             _events.RescheduleEvent(1, 1ms);
         }
         _events.Update(diff);

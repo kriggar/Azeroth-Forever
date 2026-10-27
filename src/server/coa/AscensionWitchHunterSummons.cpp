@@ -103,8 +103,6 @@ class HoundActions
   public:
     explicit HoundActions(Creature* creature) : _me(creature)
     {
-        Player* owner = Owner(creature->GetOwner());
-        _restoredFromSave = owner && owner->GetTemporaryUnsummonedPetNumber() != 0;
         _events.ScheduleEvent(EVENT_REFRESH_OWNER, 1ms);
         _events.ScheduleEvent(EVENT_AUTO_LEAP, 20s);
     }
@@ -152,16 +150,13 @@ class HoundActions
                     if (_me->GetDisplayId() != display)
                         _me->SetDisplayId(display, _me->GetObjectScale());
                 }
+                float healthFraction = _me->GetHealthPct() / 100.0f;
                 uint32 maximum = std::max(1u, owner->CountPctFromMaxHealth(_me->GetEntry() == 50124 ? 40 : 20));
                 if (maximum != _me->GetMaxHealth())
                 {
-                    uint32 health = (!_ownerRefreshed && _restoredFromSave)
-                        ? std::min(_me->GetHealth(), maximum)
-                        : std::max(1u, uint32(maximum * (_me->GetHealthPct() / 100.0f)));
                     _me->SetMaxHealth(maximum);
-                    _me->SetHealth(std::max(1u, health));
+                    _me->SetHealth(std::max(1u, uint32(maximum * healthFraction)));
                 }
-                _ownerRefreshed = true;
                 _me->SetLevel(owner->GetLevel());
                 float damage = owner->GetLevel() + owner->GetTotalAttackPowerValue(RANGED_ATTACK) * 0.04f;
                 _me->SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, damage * 0.9f);
@@ -230,8 +225,6 @@ class HoundActions
     EventMap _events;
     uint8 _landingChecks = 0;
     bool _called = false;
-    bool _ownerRefreshed = false;
-    bool _restoredFromSave = false;
 };
 
 struct npc_ascension_witch_hunter_pet : PetAI

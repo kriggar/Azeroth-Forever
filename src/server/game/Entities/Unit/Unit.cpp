@@ -16,6 +16,8 @@
  */
 
 #include "Unit.h"
+#include "AscensionSpellCopy.h"
+#include "AscensionIncarnation.h"
 #include "AbstractFollower.h"
 #include "AreaDefines.h"
 #include "ArenaSpectator.h"
@@ -5854,6 +5856,9 @@ void Unit::RemoveAppliedAuras(uint32 spellId, std::function<bool(AuraApplication
 
 void Unit::RemoveAurasDueToSpell(uint32 spellId, ObjectGuid casterGUID, uint8 reqEffMask, AuraRemoveMode removeMode)
 {
+    if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+        if (m_appliedAuras.find(spellId) == m_appliedAuras.end())
+            spellId = copy;
     for (AuraApplicationMap::iterator iter = m_appliedAuras.lower_bound(spellId); iter != m_appliedAuras.upper_bound(spellId);)
     {
         Aura const* aura = iter->second->GetBase();
@@ -6486,6 +6491,8 @@ AuraEffect* Unit::GetAuraEffect(uint32 spellId, uint8 effIndex, ObjectGuid caste
             return itr->second->GetBase()->GetEffect(effIndex);
         }
     }
+    if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+        return GetAuraEffect(copy, effIndex, caster);
     return nullptr;
 }
 
@@ -6540,6 +6547,8 @@ AuraEffect* Unit::GetAuraEffectDummy(uint32 spellid) const
             return *itr;
     }
 
+    if (uint32 copy = GetAscensionSpellCopy(spellid)) // Bronzebeard copy (vanilla classes)
+        return GetAuraEffectDummy(copy);
     return nullptr;
 }
 
@@ -6565,6 +6574,9 @@ AuraApplication* Unit::GetAuraApplication(uint32 spellId, ObjectGuid casterGUID,
 Aura* Unit::GetAura(uint32 spellId, ObjectGuid casterGUID, ObjectGuid itemCasterGUID, uint8 reqEffMask) const
 {
     AuraApplication* aurApp = GetAuraApplication(spellId, casterGUID, itemCasterGUID, reqEffMask);
+    if (!aurApp)
+        if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+            aurApp = GetAuraApplication(copy, casterGUID, itemCasterGUID, reqEffMask);
     return aurApp ? aurApp->GetBase() : nullptr;
 }
 
@@ -6577,6 +6589,8 @@ AuraApplication* Unit::GetAuraApplicationOfRankedSpell(uint32 spellId, ObjectGui
             return aurApp;
         rankSpell = sSpellMgr->GetNextSpellInChain(rankSpell);
     }
+    if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+        return GetAuraApplicationOfRankedSpell(copy, casterGUID, itemCasterGUID, reqEffMask, except);
     return nullptr;
 }
 
@@ -6661,6 +6675,8 @@ bool Unit::HasAuraEffect(uint32 spellId, uint8 effIndex, ObjectGuid caster) cons
             return true;
         }
     }
+    if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+        return HasAuraEffect(copy, effIndex, caster);
     return false;
 }
 
@@ -6677,6 +6693,9 @@ uint32 Unit::GetAuraCount(uint32 spellId) const
             count += (uint32)itr->second->GetBase()->GetStackAmount();
     }
 
+    if (!count)
+        if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+            return GetAuraCount(copy);
     return count;
 }
 
@@ -6737,6 +6756,8 @@ bool Unit::HasAura(uint32 spellId, ObjectGuid casterGUID, ObjectGuid itemCasterG
 {
     if (GetAuraApplication(spellId, casterGUID, itemCasterGUID, reqEffMask))
         return true;
+    if (uint32 copy = GetAscensionSpellCopy(spellId)) // Bronzebeard copy (vanilla classes)
+        return GetAuraApplication(copy, casterGUID, itemCasterGUID, reqEffMask) != nullptr;
     return false;
 }
 
@@ -13750,6 +13771,17 @@ void Unit::RemoveFromWorld()
     if (IsInWorld())
     {
         m_duringRemoveFromWorld = true;
+
+        // A unit queued into i_objectsForDelayedVisibility (Unit::Update(), relocation timer
+        // expiry) stays a raw pointer there until Map::HandleDelayedVisibility() processes and
+        // clears the set later in the same Map::Update() tick. Nothing else ever unhooked a
+        // unit's pointer from that set if it left the world (despawn, logout, kill, teleport)
+        // in between -- so a unit deleted after being queued but before the set was drained left
+        // a dangling Unit* that HandleDelayedVisibility() would dereference on
+        // ExecuteDelayedUnitRelocationEvent(), crashing with an access violation deep inside
+        // Object::SetFloatValue. Confirmed live under heavy bot load (mass spawn/despawn/kill
+        // churn makes this easy to hit). Erase here, the single choke point every removal path
+        // (despawn, logout, death cleanup, map change) already funnels through.
         if (Map* map = FindMap())
             map->i_objectsForDelayedVisibility.erase(this);
 
@@ -16811,6 +16843,9 @@ uint32 Unit::GetModelForForm(ShapeshiftForm form, uint32 spellId)
         if (incarnationModel)
             return incarnationModel;
 
+        if (uint32 incarnation = GetAscensionIncarnationDisplay(ToPlayer(), form, spellId))
+            return incarnation;
+
         if (uint32 ModelId = sObjectMgr->GetModelForShapeshift(form, ToPlayer()))
             return ModelId;
     }
@@ -18441,6 +18476,35 @@ uint8 Unit::getRace(bool original) const
     }
 
     return GetByteValue(UNIT_FIELD_BYTES_0, 0);
+}
+
+uint32 Unit::getRaceMask() const
+{
+    uint8 const race = getRace(true);
+    switch (race)
+    {
+        case 12: case 13: case 15: case 16: case 18: case 20: case 22: case 27: case 30:
+        case 32: case 47: case 50: case 65: case 71: case 79: case 80: case 82: case 103:
+            return 1u << (RACE_HUMAN - 1);
+        case 19: case 21: case 23: case 24: case 25: case 26: case 28: case 29: case 31:
+        case 49: case 51: case 53: case 55: case 56: case 57: case 58: case 69: case 70:
+        case 74: case 83: case 86: case 87: case 89: case 98: case 104:
+            return 1u << (RACE_ORC - 1);
+        case 48: case 67: case 68:
+            return 1u << (RACE_DWARF - 1);
+        case 14: case 54: case 59: case 61: case 62: case 75: case 85: case 97: case 99:
+        case 100: case 107: case 109: case 110:
+            return 1u << (RACE_NIGHTELF - 1);
+        case 60: case 63: case 81: case 84: case 90: case 101:
+            return 1u << (RACE_UNDEAD_PLAYER - 1);
+        case 17: case 66: case 102: case 106: case 112:
+            return 1u << (RACE_TAUREN - 1);
+        default:
+            break;
+    }
+    if (!race)
+        return 0;
+    return 1u << ((race - 1) & 31);
 }
 
 void Unit::setRace(uint8 race)

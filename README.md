@@ -1,27 +1,21 @@
 # Azeroth Forever
 
-Azeroth Forever is an independent, Classic-style World of Warcraft server development project based on the public [Conquest of AzerothCore](https://github.com/Conquest-of-AzerothCore/azerothcore-wotlk-coa) source.
+Source baseline: [Corfirean/azerothcore-wotlk-coa](https://github.com/Corfirean/azerothcore-wotlk-coa), branch `coa-bots`, which is the server-core fork used by the [CoA Server Manager build pipeline](https://github.com/Corfirean/coa-server-build).
 
-**Core design:** retain every supported Conquest of Azeroth class and specialization, with a challenging vanilla-inspired level 1–60 experience in the original Azeroth world.
+The project's direction is the full Conquest of Azeroth class roster with a slower, meaningful, original-Azeroth 1–60 experience. Azeroth Forever is a separate development project, not an official Conquest of Azeroth release.
 
-## Goals
+See [the exact upstream source revision](MANAGER_SOURCE.md).
 
-- Keep the entire CoA class roster, spell identities, and specialization systems.
-- Rework pacing, leveling, enemy difficulty, combat and group roles around Classic-era gameplay.
-- Prioritize Eastern Kingdoms and Kalimdor, world exploration, meaningful professions, items, dungeons and raids.
-- Develop improved atmosphere and UI through a separate compatible client workstream; server changes alone cannot provide a new graphics renderer.
-- Build reproducible development, test and deployment workflows.
+## What is in this repository?
 
-## Source and status
+The **open-source server core**, game scripts, database changes, module sources, and development files. This repository does **not** contain a preinstalled Windows desktop application, a running server, the Manager's official signed releases, or the proprietary WoW/CoA game client data.
 
-The complete public Conquest of AzerothCore source snapshot was imported at upstream revision [`9fae1a46`](https://github.com/Conquest-of-AzerothCore/azerothcore-wotlk-coa/commit/9fae1a4628d46fb36e1d3f4c5d80be1ca6a553c4). See [source provenance](UPSTREAM_SOURCE.md).
+The Manager's published build includes additional independent modules (playerbots, content scaling, SQUID) and a signed base package containing client-extracted data. Those must be handled separately; core code alone is not identical to the prebuilt package.
 
-**Automated Linux C++ build:** [GitHub Actions – Compile Azeroth Forever](https://github.com/kriggar/Azeroth-Forever/actions/workflows/compile-server.yml). The workflow verifies source, compiles the worldserver and authserver, runs unit tests, and publishes successful build artifacts.
+- [Download the CoA Server Manager for Windows](https://github.com/Corfirean/coa-server-manager/releases/latest)
+- [Official Manager-compatible server package pipeline](https://github.com/Corfirean/coa-server-build)
+- [Azeroth Forever GitHub Actions](https://github.com/kriggar/Azeroth-Forever/actions)
 
-**Source imported does not mean game-ready.** A successful compile only establishes that binaries build; startup, database readiness and client-side gameplay tests are separate work.
+## Licensing
 
-A playable server also needs a compatible client, the required game data and world database, database credentials, a build environment, and a server host. The source code alone is not a complete client download.
-
-### Copyright and licensing
-
-Preserve all upstream copyright and license notices when importing code, especially the GPL-2.0 root license and any individual file notices. Do not commit copyrighted Blizzard client binaries, proprietary game assets, credentials, or players' personal data. The project is independent and is not endorsed by Blizzard Entertainment or the CoA developers.
+Preserve the upstream license and individual file notices. Client-extracted game assets and proprietary data are not covered by the public source license and must not be committed here.

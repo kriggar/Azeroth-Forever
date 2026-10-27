@@ -245,6 +245,7 @@ enum PlayerHook
     PLAYERHOOK_ON_HAS_NO_BONUS_EXPERIENCE,
     PLAYERHOOK_ON_HONORABLE_KILLING_BLOW,
     PLAYERHOOK_ON_BANKER_ACTIVATE,
+    PLAYERHOOK_ON_PETITION_OFFERED,
     PLAYERHOOK_ON_BANK_WITHDRAW,
     PLAYERHOOK_ON_LEARN_PET_TALENT,
     PLAYERHOOK_ON_LEARN_TRAINER_SPELL,
@@ -255,6 +256,8 @@ enum PlayerHook
     PLAYERHOOK_ON_REFRESH_QUEST_GIVER,
     PLAYERHOOK_ON_COA_PROGRESS,
     PLAYERHOOK_ON_GET_GAME_MODE_MASK,
+    PLAYERHOOK_ON_RESOLVE_DUNGEON_ACCESS_LEVELS,
+    PLAYERHOOK_ON_RESOLVE_LFG_REWARD_LEVEL,
     PLAYERHOOK_ON_AFTER_APPLY_ITEM_MODS,
     PLAYERHOOK_ON_COA_PRESTIGE,
     PLAYERHOOK_ON_COA_PRESTIGE_SAVED,
@@ -468,6 +471,12 @@ public:
     // Append charge displays backed by module-owned state after the core's full client reset.
     virtual void OnPlayerSendSpellChargeStates(Player const* /*player*/) { }
     virtual void OnPlayerSpellCooldownCalculated(Player* /*player*/, SpellInfo const* /*spellInfo*/, Spell* /*spell*/, uint32 /*recoveryMs*/) { }
+
+    // Fires when a petition (guild charter or arena team charter) is offered to a specific
+    // player via HandleOfferPetitionOpcode (the real "Request Signature" action) -- lets a
+    // module react to "this specific player was just explicitly asked to sign," as opposed to
+    // guessing intent from group membership alone.
+    virtual void OnPetitionOffered(Player* /*player*/, ObjectGuid /*petitionGuid*/) { }
 
     // Called when a player is bound to an instance
     virtual void OnPlayerBindToInstance(Player* /*player*/, Difficulty /*difficulty*/, uint32 /*mapId*/, bool /*permanent*/) { }
@@ -761,6 +770,8 @@ public:
     [[nodiscard]] virtual bool OnPlayerCanJoinLfg(Player* /*player*/, uint8 /*roles*/, std::set<uint32>& /*dungeons*/, std::string const& /*comment*/) { return true; }
 
     [[nodiscard]] virtual bool OnPlayerCanEnterMap(Player* /*player*/, MapEntry const* /*entry*/, InstanceTemplate const* /*instance*/, MapDifficulty const* /*mapDiff*/, bool /*loginCheck*/) { return true; }
+    virtual void OnResolveDungeonAccessLevels(Player const* /*player*/, uint32 /*mapId*/, Difficulty /*difficulty*/, uint8& /*minLevel*/, uint8& /*maxLevel*/) { }
+    virtual void OnResolveLfgRewardLevel(Player const* /*player*/, uint32 /*dungeonId*/, uint8& /*level*/) { }
 
     [[nodiscard]] virtual bool OnPlayerCanInitTrade(Player* /*player*/, Player* /*target*/) { return true; }
 

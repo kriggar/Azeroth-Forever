@@ -20,7 +20,6 @@ INSERT INTO `game_tele` (`id`, `position_x`, `position_y`, `position_z`, `orient
 (2201,480.61,-232.172,173.47,4.15317,937,'RoadToDeOtherSide');
 
 -- creature_template
-DELETE FROM `creature_template` WHERE `entry` IN (162711, 162715, 162716, 162717, 162718, 162719, 162726, 162727, 162728, 162729, 162730, 162731, 162739, 162740, 162741, 162743, 162744, 162746, 162765, 162766, 162767, 162769, 162770, 162771, 162772, 162773, 162774, 162775, 162776, 162777, 162778, 162779, 162780, 162781, 162782, 162783, 162784, 162785, 162786, 162787, 162788, 162933, 162951, 162972, 162973, 162975, 162976, 162978, 162979, 162980, 162981, 162982, 162983, 162988, 162989, 9370001, 9370002, 9370003, 9370010);
 INSERT INTO `creature_template` (`entry`, `difficulty_entry_1`, `difficulty_entry_2`, `difficulty_entry_3`, `KillCredit1`, `KillCredit2`, `name`, `subname`, `IconName`, `gossip_menu_id`, `minlevel`, `maxlevel`, `exp`, `faction`, `npcflag`, `speed_walk`, `speed_run`, `speed_swim`, `speed_flight`, `detection_range`, `rank`, `dmgschool`, `DamageModifier`, `BaseAttackTime`, `RangeAttackTime`, `BaseVariance`, `RangeVariance`, `unit_class`, `unit_flags`, `unit_flags2`, `dynamicflags`, `family`, `type`, `type_flags`, `lootid`, `pickpocketloot`, `skinloot`, `PetSpellDataId`, `VehicleId`, `mingold`, `maxgold`, `AIName`, `MovementType`, `HoverHeight`, `HealthModifier`, `ManaModifier`, `ArmorModifier`, `ExperienceModifier`, `RacialLeader`, `movementId`, `RegenHealth`, `CreatureImmunitiesId`, `flags_extra`, `ScriptName`, `VerifiedBuild`) VALUES
 (162711,0,0,0,0,0,'Muzah, the Shadow Hunter','Hirsutta\'s Chosen',NULL,0,60,60,0,14,0,1,1.14286,1,1,20,3,0,4,2000,0,1,1,1,0,0,0,0,7,12,162711,0,0,0,0,0,0,'',0,1,25,1,1,1,0,0,1,0,0,'boss_coa_muzah',12340),
 (162715,0,0,0,0,0,'Drak\'math the Sinister King','',NULL,0,60,60,0,14,0,1,1.14286,1,1,20,3,0,4,2000,0,1,1,2,0,0,0,0,6,12,162715,0,0,0,0,0,0,'',0,1,25,1,1,1,0,0,1,0,0,'boss_coa_drakmath',12340),
@@ -80,7 +79,62 @@ INSERT INTO `creature_template` (`entry`, `difficulty_entry_1`, `difficulty_entr
 (9370001,0,0,0,0,0,'Road to De Other Side Ambush Trigger',NULL,NULL,0,60,60,0,35,0,1,1.14286,1,1,20,0,0,1,0,0,1,1,1,33554434,0,0,0,0,0,0,0,0,0,0,0,0,'SmartAI',0,1,1,1,1,1,0,0,1,0,128,'',12340),
 (9370002,0,0,0,0,0,'Interstitial Wanderer',NULL,NULL,0,59,59,0,35,0,1,1.14286,1,1,20,0,0,1,0,0,1,1,1,33554434,0,32,0,6,0,0,0,0,0,0,0,0,'',0,1,1,1,1,1,0,0,0,0,2,'',12340),
 (9370003,0,0,0,0,0,'Bats',NULL,NULL,0,1,1,0,35,0,2,1.6,1,1,20,0,0,1,0,0,1,1,1,33554434,0,0,0,8,0,0,0,0,0,0,0,0,'',0,1,1,1,1,1,0,0,0,0,2,'',12340),
-(9370010,0,0,0,0,0,'Chimeric Egg','',NULL,0,60,60,0,14,0,1,1.14286,1,1,20,0,0,1,2000,0,1,1,1,33554434,0,0,0,0,0,0,0,0,0,0,0,0,'',0,1,1,1,1,1,0,0,0,0,0,'',12340);
+(9370010,0,0,0,0,0,'Chimeric Egg','',NULL,0,60,60,0,14,0,1,1.14286,1,1,20,0,0,1,2000,0,1,1,1,33554434,0,0,0,0,0,0,0,0,0,0,0,0,'',0,1,1,1,1,1,0,0,0,0,0,'',12340)
+ON DUPLICATE KEY UPDATE
+`difficulty_entry_1` = VALUES(`difficulty_entry_1`),
+`difficulty_entry_2` = VALUES(`difficulty_entry_2`),
+`difficulty_entry_3` = VALUES(`difficulty_entry_3`),
+`KillCredit1` = VALUES(`KillCredit1`),
+`KillCredit2` = VALUES(`KillCredit2`),
+`name` = VALUES(`name`),
+`subname` = VALUES(`subname`),
+`IconName` = VALUES(`IconName`),
+`gossip_menu_id` = VALUES(`gossip_menu_id`),
+`minlevel` = VALUES(`minlevel`),
+`maxlevel` = VALUES(`maxlevel`),
+`exp` = VALUES(`exp`),
+`faction` = VALUES(`faction`),
+`npcflag` = VALUES(`npcflag`),
+`speed_walk` = VALUES(`speed_walk`),
+`speed_run` = VALUES(`speed_run`),
+`speed_swim` = VALUES(`speed_swim`),
+`speed_flight` = VALUES(`speed_flight`),
+`detection_range` = VALUES(`detection_range`),
+`rank` = VALUES(`rank`),
+`dmgschool` = VALUES(`dmgschool`),
+`DamageModifier` = VALUES(`DamageModifier`),
+`BaseAttackTime` = VALUES(`BaseAttackTime`),
+`RangeAttackTime` = VALUES(`RangeAttackTime`),
+`BaseVariance` = VALUES(`BaseVariance`),
+`RangeVariance` = VALUES(`RangeVariance`),
+`unit_class` = VALUES(`unit_class`),
+`unit_flags` = VALUES(`unit_flags`),
+`unit_flags2` = VALUES(`unit_flags2`),
+`dynamicflags` = VALUES(`dynamicflags`),
+`family` = VALUES(`family`),
+`type` = VALUES(`type`),
+`type_flags` = VALUES(`type_flags`),
+`lootid` = VALUES(`lootid`),
+`pickpocketloot` = VALUES(`pickpocketloot`),
+`skinloot` = VALUES(`skinloot`),
+`PetSpellDataId` = VALUES(`PetSpellDataId`),
+`VehicleId` = VALUES(`VehicleId`),
+`mingold` = VALUES(`mingold`),
+`maxgold` = VALUES(`maxgold`),
+`AIName` = VALUES(`AIName`),
+`MovementType` = VALUES(`MovementType`),
+`HoverHeight` = VALUES(`HoverHeight`),
+`HealthModifier` = VALUES(`HealthModifier`),
+`ManaModifier` = VALUES(`ManaModifier`),
+`ArmorModifier` = VALUES(`ArmorModifier`),
+`ExperienceModifier` = VALUES(`ExperienceModifier`),
+`RacialLeader` = VALUES(`RacialLeader`),
+`movementId` = VALUES(`movementId`),
+`RegenHealth` = VALUES(`RegenHealth`),
+`CreatureImmunitiesId` = VALUES(`CreatureImmunitiesId`),
+`flags_extra` = VALUES(`flags_extra`),
+`ScriptName` = VALUES(`ScriptName`),
+`VerifiedBuild` = VALUES(`VerifiedBuild`);
 
 -- creature_template_addon
 DELETE FROM `creature_template_addon` WHERE `entry` IN (162711, 162715, 162716, 162717, 162718, 162719, 162726, 162727, 162728, 162729, 162730, 162731, 162739, 162740, 162741, 162743, 162744, 162746, 162765, 162766, 162767, 162769, 162770, 162771, 162772, 162773, 162774, 162775, 162776, 162777, 162778, 162779, 162780, 162781, 162782, 162783, 162784, 162785, 162786, 162787, 162788, 162933, 162951, 162972, 162973, 162975, 162976, 162978, 162979, 162980, 162981, 162982, 162983, 162988, 162989, 9370001, 9370002, 9370003, 9370010);
@@ -279,13 +333,47 @@ INSERT INTO `creature_text` (`CreatureID`, `GroupID`, `ID`, `Text`, `Type`, `Lan
 (162783,1,4,'Spirits of the Spider, the Bat, and the Serpent. Forgive me, I have failed you...',12,0,100,0,0,0,0,0,'Interstitial Wanderer - death');
 
 -- gameobject_template
-DELETE FROM `gameobject_template` WHERE `entry` IN (2300563, 2300586, 2300587, 2300588, 9370001);
 INSERT INTO `gameobject_template` (`entry`, `type`, `displayId`, `name`, `IconName`, `castBarCaption`, `unk1`, `size`, `Data0`, `Data1`, `Data2`, `Data3`, `Data4`, `Data5`, `Data6`, `Data7`, `Data8`, `Data9`, `Data10`, `Data11`, `Data12`, `Data13`, `Data14`, `Data15`, `Data16`, `Data17`, `Data18`, `Data19`, `Data20`, `Data21`, `Data22`, `Data23`, `AIName`, `ScriptName`, `VerifiedBuild`) VALUES
 (2300563,5,300457,'SinisterLair Dungeon Troll Bridge','','','',1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','',12340),
 (2300586,10,1045754,'Zandalari Urn (Blue)','','','',1,0,0,937001,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'SmartGameObjectAI','',12340),
 (2300587,0,300459,'Muzah Arena Gate (Entrance)','','','',1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','',12340),
 (2300588,0,300459,'Muzah Arena Gate (Exit)','','','',1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','',12340),
-(9370001,5,1048291,'Blood Stain','','','',1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','',12340);
+(9370001,5,1048291,'Blood Stain','','','',1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'','',12340)
+ON DUPLICATE KEY UPDATE
+`type` = VALUES(`type`),
+`displayId` = VALUES(`displayId`),
+`name` = VALUES(`name`),
+`IconName` = VALUES(`IconName`),
+`castBarCaption` = VALUES(`castBarCaption`),
+`unk1` = VALUES(`unk1`),
+`size` = VALUES(`size`),
+`Data0` = VALUES(`Data0`),
+`Data1` = VALUES(`Data1`),
+`Data2` = VALUES(`Data2`),
+`Data3` = VALUES(`Data3`),
+`Data4` = VALUES(`Data4`),
+`Data5` = VALUES(`Data5`),
+`Data6` = VALUES(`Data6`),
+`Data7` = VALUES(`Data7`),
+`Data8` = VALUES(`Data8`),
+`Data9` = VALUES(`Data9`),
+`Data10` = VALUES(`Data10`),
+`Data11` = VALUES(`Data11`),
+`Data12` = VALUES(`Data12`),
+`Data13` = VALUES(`Data13`),
+`Data14` = VALUES(`Data14`),
+`Data15` = VALUES(`Data15`),
+`Data16` = VALUES(`Data16`),
+`Data17` = VALUES(`Data17`),
+`Data18` = VALUES(`Data18`),
+`Data19` = VALUES(`Data19`),
+`Data20` = VALUES(`Data20`),
+`Data21` = VALUES(`Data21`),
+`Data22` = VALUES(`Data22`),
+`Data23` = VALUES(`Data23`),
+`AIName` = VALUES(`AIName`),
+`ScriptName` = VALUES(`ScriptName`),
+`VerifiedBuild` = VALUES(`VerifiedBuild`);
 
 -- gameobject_template_addon
 DELETE FROM `gameobject_template_addon` WHERE `entry` IN (2300563, 2300586, 2300587, 2300588, 9370001);
@@ -17070,7 +17158,7 @@ INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `Q
 (162983,3311,0,0.256,0,1,0,1,1,'Searing Blade Enforcer - Ceremonial Leather Ankleguards');
 
 -- coa_dungeon_loot_variant
-DELETE FROM `coa_dungeon_loot_variant` WHERE base_item BETWEEN 559300 AND 559365;
+DELETE FROM `coa_dungeon_loot_variant` WHERE `base_item` BETWEEN 559300 AND 559365;
 INSERT INTO `coa_dungeon_loot_variant` (`base_item`, `heroic_item`, `mythic_item`) VALUES
 (559301,278090,278091),
 (559302,278150,278151),
@@ -17119,7 +17207,7 @@ INSERT INTO `instance_encounters` (`entry`, `creditType`, `creditEntry`, `lastEn
 (15019,0,162716,2402,'Road to De Other Side Mythic: Chimeric Embryo');
 
 -- coa_dungeon_health
-DELETE FROM `coa_dungeon_health` WHERE map_id = 937;
+DELETE FROM `coa_dungeon_health` WHERE `map_id` = 937;
 INSERT INTO `coa_dungeon_health` (`map_id`, `difficulty`, `creature_entry`, `max_health`, `evidence`, `source`) VALUES
 (937,1,162711,674735,'log','Heroic from Mythic /1.3; Muzah, the Shadow Hunter'),
 (937,1,162715,665142,'log','Heroic from Mythic /1.3; Drak\'math the Sinister King'),
@@ -17180,7 +17268,7 @@ INSERT INTO `coa_dungeon_bosses` (`entry`) VALUES
 (162988);
 
 -- coa_dungeon_spell_damage
-DELETE FROM `coa_dungeon_spell_damage` WHERE comment LIKE 'Road to De Other Side:%';
+DELETE FROM `coa_dungeon_spell_damage` WHERE `comment` LIKE 'Road to De Other Side:%';
 INSERT INTO `coa_dungeon_spell_damage` (`spell_id`, `multiplier`, `comment`) VALUES
 (256109,1,'Road to De Other Side: Earth Strike (Fissure Strike), values from the logs, no trash cap'),
 (256905,1,'Road to De Other Side: Decaying Hemorrhage, values from the logs, no trash cap'),

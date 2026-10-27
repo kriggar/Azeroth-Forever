@@ -1,6 +1,7 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 #include "AscensionTinker.h"
 #include "AscensionTinkerData.h"
+#include "AscensionCustomResourceData.h"
 #include "CellImpl.h"
 #include "DynamicObject.h"
 #include "GameTime.h"
@@ -18,7 +19,6 @@
 #include <algorithm>
 #include <memory>
 #include <mutex>
-#include <shared_mutex>
 #include <tuple>
 #include <unordered_map>
 namespace AscensionTinker
@@ -26,7 +26,7 @@ namespace AscensionTinker
 namespace
 {
 std::unordered_map<ObjectGuid, std::unique_ptr<TinkerState>> states;
-std::shared_mutex stateMutex;
+std::mutex stateMutex;
 }
 Player* Owner(Unit const* unit)
 {
@@ -39,16 +39,8 @@ Player* Owner(Unit const* unit)
 }
 TinkerState& State(Player* player)
 {
-    {
-        std::shared_lock<std::shared_mutex> lock(stateMutex);
-        if (auto itr = states.find(player->GetGUID()); itr != states.end())
-            return *itr->second;
-    }
-    std::unique_lock<std::shared_mutex> lock(stateMutex);
-    auto& state = states[player->GetGUID()];
-    if (!state)
-        state = std::make_unique<TinkerState>();
-    return *state;
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return *states.try_emplace(player->GetGUID(), std::make_unique<TinkerState>()).first->second;
 }
 bool NotifyAttack(Player* player, Unit* target)
 {
@@ -249,7 +241,8 @@ bool Resource(Player* player, uint32 id, int32 delta)
 {
     if (!player || player->getClass() != CLASS_TINKER || id != Scrap)
         return false;
-    uint32 after = uint32(std::clamp<int64>(int64(Count(player,Scrap)) + delta,0,100));
+    uint32 after = uint32(std::clamp<int64>(int64(Count(player,Scrap)) + delta,0,
+        int64(AscensionCompatData::TINKER_SCRAP_MAX)));
     if (!after)
     {
         player->RemoveAurasDueToSpell(Scrap);
@@ -411,7 +404,7 @@ public:
         using namespace AscensionTinker;
         if (Owner(player) == player)
             ExitMechsuit(player);
-        std::unique_lock<std::shared_mutex> lock(stateMutex);
+        std::lock_guard<std::mutex> lock(stateMutex);
         states.erase(player->GetGUID());
     }
 };

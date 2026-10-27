@@ -108,9 +108,7 @@ class PlayerSocial
         void RemoveFromSocialList(ObjectGuid const& friend_guid, SocialFlag flag);
         void SetFriendNote(ObjectGuid const& friendGuid, std::string note);
         // Packet send's
-        void SendSocialList(Player* player, uint32 flags, ObjectGuid excluded = ObjectGuid::Empty);
-        bool UsesAccountFriends() const;
-        void ProjectAccountFriends(Player* player, ObjectGuid excluded = ObjectGuid::Empty);
+        void SendSocialList(Player* player, uint32 flags);
         // Misc
         bool HasFriend(ObjectGuid const& friend_guid) const;
         bool HasIgnore(ObjectGuid const& ignore_guid) const;
