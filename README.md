@@ -19,3 +19,11 @@ The Manager's published build includes additional independent modules (playerbot
 ## Licensing
 
 Preserve the upstream license and individual file notices. Client-extracted game assets and proprietary data are not covered by the public source license and must not be committed here.
+
+## Download and test locally
+
+- **Portable Windows server launcher:** [Download the latest successful ZIP build](https://github.com/kriggar/Azeroth-Forever/actions/workflows/portable-server-zip.yml). Extract the artifact ZIP and double-click `Start_Azeroth_Forever.bat`. On first launch it downloads the original publisher's pinned CoA Server Manager base archive directly from the publisher, then attempts to start the local server and create a test account. The game client is separate.
+- **Actual local startup smoke test:** [Windows first-launch validation](https://github.com/kriggar/Azeroth-Forever/actions/workflows/portable-server-smoke.yml).
+- **Compiled custom code:** [Native Windows server builds](https://github.com/kriggar/Azeroth-Forever/actions/workflows/build-windows-exe.yml). New gameplay changes to C++ need a successful compilation before being tested in the local server.
+
+The portable installer is not a self-contained published game, and the original publisher's client/game data are not rehosted here. Downloading and building source do not establish client compatibility or a ready realm. See [portable setup details](tools/portable/README.md).
