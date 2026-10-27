@@ -1,39 +1,31 @@
 # Azeroth Forever
 
-Source baseline: [Corfirean/azerothcore-wotlk-coa](https://github.com/Corfirean/azerothcore-wotlk-coa), branch `coa-bots`, which is the server-core fork used by the [CoA Server Manager build pipeline](https://github.com/Corfirean/coa-server-build).
+**Goal: one working Conquest of Azeroth server download that you extract, start, and test locally.**
 
-The project's direction is the full Conquest of Azeroth class roster with a slower, meaningful, original-Azeroth 1–60 experience. Azeroth Forever is a separate development project, not an official Conquest of Azeroth release.
+## Download the server
 
-See [the exact upstream source revision](MANAGER_SOURCE.md).
+**[CoA Server Manager — offline server package and Windows installation tests](https://github.com/kriggar/Azeroth-Forever/actions/workflows/coa-manager-offline-server.yml)**
 
-## What is in this repository?
+The new workflow compiles **CoA Server Manager's actual open-source Rust installation engine**, includes the publisher's signed server base archive and verifies it before launching the server installation. The real Manager installer initializes MySQL and creates new local database credentials on each PC. **Only use a build once its Windows installation test has passed.**
 
-The **open-source server core**, game scripts, database changes, module sources, and development files. This repository does **not** contain a preinstalled Windows desktop application, a running server, the Manager's official signed releases, or the proprietary WoW/CoA game client data.
+**Why not the green Code → Download ZIP button?** GitHub's Code ZIP exports tracked source code. The working server contains large prebuilt binaries and game data that exceed ordinary Git file limits; client-extracted data also have separate redistribution rights. A tested Windows server distribution must be downloaded as a separately packaged artifact or authorized release.
 
-The Manager's published build includes additional independent modules (playerbots, content scaling, SQUID) and a signed base package containing client-extracted data. Those must be handled separately; core code alone is not identical to the prebuilt package.
+## Status
 
-- [Download the CoA Server Manager for Windows](https://github.com/Corfirean/coa-server-manager/releases/latest)
-- [Official Manager-compatible server package pipeline](https://github.com/Corfirean/coa-server-build)
-- [Azeroth Forever GitHub Actions](https://github.com/kriggar/Azeroth-Forever/actions)
+- Previous custom ZIP installer **FAILED** its Windows startup test because it skipped the CoA Server Manager database initialization (`Settings/database.json` was absent). Do not use the old `tools/portable/` launcher.
+- The real Manager installation workflow is now being integrated and tested.
+- The separate Windows build pipeline compiles our **future customized server code**; a successful source-code commit is not automatically a playable server update.
 
-## Licensing
+## What stays in GitHub
 
-Preserve the upstream license and individual file notices. Client-extracted game assets and proprietary data are not covered by the public source license and must not be committed here.
+This repository currently also contains the open-source server code used for gameplay development, based on `Corfirean/azerothcore-wotlk-coa` at the pinned revision recorded in [MANAGER_SOURCE.md](MANAGER_SOURCE.md). We retain the source to modify classes, spells, talents, quests, and other mechanics. It is distinct from the installed server.
 
-## Complete prebuilt CoA Server Manager base archive (actual server files)
+**Azeroth Forever's direction:** keep every Conquest of Azeroth class and specialization, but develop a grounded, slower, vanilla-style Azeroth leveling and exploration experience.
 
-**[Download the full server package from GitHub Actions](https://github.com/kriggar/Azeroth-Forever/actions/workflows/download-complete-coa-server.yml)**
+## Sources, distribution and licenses
 
-The successful [full CoA package run](https://github.com/kriggar/Azeroth-Forever/actions/runs/40599495198) fetched the real published CoA Server Manager base archive (about 1.5 GB compressed), checked its publisher SHA-256 and uploaded it as the `Azeroth-Forever-CoA-Full-Server` artifact.
+- [CoA Server Manager (official open-source manager)](https://github.com/Corfirean/coa-server-manager)
+- [Publisher's signed CoA server base package](https://github.com/Corfirean/coa-server-build/releases/tag/base)
+- [Server-core source fork](https://github.com/Corfirean/azerothcore-wotlk-coa)
 
-**Use the Actions artifact, not Code → Download ZIP.** The Code button only exports the open-source development tree; game-server data and executables are too large for an ordinary Git checkout. Download the artifact, extract it, then double-click `Start_Azeroth_Forever.bat`. The official server archive is already included, so you do not need to download it separately during initial installation.
-
-**Caveats:** This is the original publisher's base package, not a fully updated Manager install or our later custom binaries. An end-to-end Windows startup/client login has not yet passed. The extracted client-derived game files are not licensed as part of the GPL source code, so this artifact is intended for temporary personal testing rather than public redistribution. The artifact expires; re-run its workflow to prepare a fresh package.
-
-## Download and test locally
-
-- **Portable Windows server launcher:** [Download the latest successful ZIP build](https://github.com/kriggar/Azeroth-Forever/actions/workflows/portable-server-zip.yml). Extract the artifact ZIP and double-click `Start_Azeroth_Forever.bat`. On first launch it downloads the original publisher's pinned CoA Server Manager base archive directly from the publisher, then attempts to start the local server and create a test account. The game client is separate.
-- **Actual local startup smoke test:** [Windows first-launch validation](https://github.com/kriggar/Azeroth-Forever/actions/workflows/portable-server-smoke.yml).
-- **Compiled custom code:** [Native Windows server builds](https://github.com/kriggar/Azeroth-Forever/actions/workflows/build-windows-exe.yml). New gameplay changes to C++ need a successful compilation before being tested in the local server.
-
-The portable installer is not a self-contained published game, and the original publisher's client/game data are not rehosted here. Downloading and building source do not establish client compatibility or a ready realm. See [portable setup details](tools/portable/README.md).
+This is an independent project; preserve GPL/AGPL notices. The client-extracted DBC/maps/vmaps/mmaps data in the publisher's package are **not covered by the open-source code license**. Don't commit those proprietary files or personal server credentials to this public repository.
