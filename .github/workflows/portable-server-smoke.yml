@@ -1,0 +1,67 @@
+name: Portable Server Installation Smoke Test (Windows)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/portable-server-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  install-and-start:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Checkout installer only
+        uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: tools/portable
+
+      - name: Record clean Windows runner disk and resources
+        shell: pwsh
+        run: |
+          Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+          Get-Command tar.exe | Select-Object Source
+          Get-ComputerInfo -Property WindowsProductName,OsVersion | Format-List
+
+      - name: Run real first-launch setup and auth/worldserver readiness
+        id: smoke
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dest = Join-Path $env:RUNNER_TEMP 'Azeroth-Forever'
+          New-Item -ItemType Directory -Path $dest -Force | Out-Null
+          Copy-Item tools/portable/Setup-And-Start.ps1 $dest
+          Write-Host 'Testing verified official base download, extraction, MySQL startup, authserver, worldserver and account creation.'
+          & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $dest 'Setup-And-Start.ps1')
+          if ($LASTEXITCODE -ne 0) { throw 'Portable first-launch script failed.' }
+          $login = Join-Path $dest 'LOCAL_LOGIN.txt'
+          if (-not (Test-Path $login)) { throw 'Developer account was not successfully created.' }
+          $settingsPath = Join-Path $dest 'Server/Settings/repack.json'
+          $settings = Get-Content -Path $settingsPath -Raw | ConvertFrom-Json
+          foreach ($key in 'authPort','worldPort') {
+            $port = $settings.$key
+            $tcp = New-Object Net.Sockets.TcpClient
+            try {
+              $tcp.Connect('127.0.0.1', [int]$port)
+              Write-Host "$key ready on 127.0.0.1:$port"
+            } finally {
+              $tcp.Dispose()
+            }
+          }
+
+      - name: Stop test servers on the disposable runner
+        if: always()
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'Azeroth-Forever/Server'
+          $python = Join-Path $root 'Runtime/python/python.exe'
+          $manage = Join-Path $root 'Scripts/manage.py'
+          if ((Test-Path $python) -and (Test-Path $manage)) {
+            & $python -B $manage stop-all
+          }
+          Write-Host 'No game data or credentials are uploaded from this disposable test runner.'
