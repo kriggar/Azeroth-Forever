@@ -1,6 +1,7 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 
 #include "Battlefield.h"
+#include "Config.h"
 #include "BattlefieldMgr.h"
 #include "DBCStores.h"
 #include "Map.h"
@@ -113,6 +114,10 @@ class spell_ascension_closest_resurrection : public SpellScript
 
     SpellCastResult CheckCast()
     {
+        // Vanilla realm uses corpse running and the native spirit healer/graveyard flow.
+        if (sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+            return SPELL_FAILED_NOT_HERE;
+
         Player* player = GetCaster()->ToPlayer();
         if (player->IsAlive())
             return SPELL_FAILED_TARGET_NOT_DEAD;
@@ -162,6 +167,13 @@ public:
 
     void OnPlayerLogin(Player* player) override
     {
+        if (sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+        {
+            for (uint32 spellId : { SPELL_RESURRECT_CLOSEST_TOWN, SPELL_RESURRECT_CLOSEST_CITY })
+                player->removeSpell(spellId, 0xFF, false);
+            return;
+        }
+
         for (uint32 spellId : { SPELL_RESURRECT_CLOSEST_TOWN, SPELL_RESURRECT_CLOSEST_CITY })
             if (!player->HasSpell(spellId))
                 player->learnSpell(spellId, false);
