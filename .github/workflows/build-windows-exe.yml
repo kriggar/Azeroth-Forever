@@ -90,17 +90,17 @@ jobs:
             Select-Object -First 1
           if (-not $ssl) { throw 'OpenSSL development headers unavailable.' }
 
-          cmake -S . -B build -G Ninja \`
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \`
-            -DAPPS_BUILD=all -DTOOLS_BUILD=none \`
-            -DBUILD_TESTING=ON \`
-            -DSCRIPTS=static -DMODULES=static \`
-            -DUSE_COREPCH=0 -DUSE_SCRIPTPCH=0 \`
-            -DCMAKE_JOB_POOLS=link_pool=1 -DCMAKE_JOB_POOL_LINK=link_pool \`
-            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \`
-            "-DBOOST_ROOT=$env:BOOST_ROOT" \`
-            -DMYSQL_INCLUDE_DIR=C:/tools/mysql/current/include \`
-            -DMYSQL_LIBRARY=C:/tools/mysql/current/lib/mysqlclient.lib \`
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DAPPS_BUILD=all -DTOOLS_BUILD=none `
+            -DBUILD_TESTING=ON `
+            -DSCRIPTS=static -DMODULES=static `
+            -DUSE_COREPCH=0 -DUSE_SCRIPTPCH=0 `
+            -DCMAKE_JOB_POOLS=link_pool=1 -DCMAKE_JOB_POOL_LINK=link_pool `
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
+            "-DBOOST_ROOT=$env:BOOST_ROOT" `
+            -DMYSQL_INCLUDE_DIR=C:/tools/mysql/current/include `
+            -DMYSQL_LIBRARY=C:/tools/mysql/current/lib/mysqlclient.lib `
             "-DOPENSSL_ROOT_DIR=$ssl"
           if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
 
