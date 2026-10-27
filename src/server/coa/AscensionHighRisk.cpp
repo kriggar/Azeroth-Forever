@@ -465,7 +465,8 @@ public:
 
     void OnAfterConfigLoad(bool) override
     {
-        enabled = sConfigMgr->GetOption<bool>("HighRisk.Losses", false);
+        enabled = !sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true) &&
+            sConfigMgr->GetOption<bool>("HighRisk.Losses", false);
         gearChance = std::clamp(sConfigMgr->GetOption<float>("HighRisk.GearChance", 50.0f), 0.0f, 100.0f);
         resourceChance = std::clamp(sConfigMgr->GetOption<float>("HighRisk.ResourceChance", 50.0f), 0.0f, 100.0f);
         goldChance = std::clamp(sConfigMgr->GetOption<float>("HighRisk.GoldChance", 50.0f), 0.0f, 100.0f);
@@ -474,6 +475,14 @@ public:
     void OnStartup() override
     {
         OnAfterConfigLoad(false);
+        if (sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+        {
+            // Leave historical escrow records untouched. Never create visible chests
+            // or new High-Risk losses on the vanilla realm.
+            loaded = true;
+            LOG_INFO("server.worldserver", "Azeroth Forever vanilla mode: High-Risk chests disabled");
+            return;
+        }
         std::lock_guard<std::mutex> lock(mutex);
         auto result = CharacterDatabase.Query("SELECT COALESCE(MAX(id),0) FROM highrisk_chest");
         ASSERT(result, "High Risk chest schema is missing");
@@ -537,7 +546,8 @@ public:
 
     void OnPlayerLogin(Player* player) override
     {
-        if (player->GetSession()->IsBot())
+        if (player->GetSession()->IsBot() ||
+            sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
             return;
         WorldPacket query(CMSG_GAMEOBJECT_QUERY, 12);
         query << uint32(ChestEntry) << ObjectGuid::Empty;
