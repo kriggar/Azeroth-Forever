@@ -1,5 +1,6 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 #include "Chat.h"
+#include "Config.h"
 #include "GameObject.h"
 #include "GameObjectScript.h"
 #include "Player.h"
@@ -160,6 +161,8 @@ public:
 
     bool OnGossipHello(Player* player, GameObject* go) override
     {
+        if (sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+            return true;
         go->PlayDirectSound(SOUND_TELEPORTER_HORN, player);
         ShowMenu(player, go);
         return true;
@@ -168,6 +171,8 @@ public:
     bool OnGossipSelect(Player* player, GameObject*, uint32, uint32 action) override
     {
         CloseGossipMenuFor(player);
+        if (sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+            return true;
         if (action < DESTINATION_ACTION_BASE || action - DESTINATION_ACTION_BASE >= Destinations.size())
             return true;
 
