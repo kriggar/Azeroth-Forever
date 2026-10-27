@@ -1,0 +1,156 @@
+name: Compile Azeroth Forever Windows Server Binaries
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-windows-exe.yml'
+      - 'src/**'
+      - 'modules/**'
+      - 'deps/**'
+      - 'conf/**'
+      - 'CMakeLists.txt'
+      - 'PreLoad.cmake'
+      - 'apps/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-server-build-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: windows-2022
+    timeout-minutes: 320
+    env:
+      BOOST_ROOT: C:\local\boost_1_87_0
+      VSLANG: '1033'
+    steps:
+      - name: Checkout the exact Azeroth Forever revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Enable Visual Studio C++ build tools
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Reuse stable Windows C++ dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\local\boost_1_87_0
+            C:\tools\mysql\current
+          key: azeroth-forever-msvc-boost187-mysql849
+
+      - name: Install Boost and MySQL developer libraries if needed
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path 'C:\local\boost_1_87_0\boost\version.hpp')) {
+            $uri = 'https://downloads.sourceforge.net/project/boost/boost-binaries/1.87.0/boost_1_87_0-msvc-14.3-64.exe'
+            $exe = Join-Path $env:RUNNER_TEMP 'boost-1.87.exe'
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $uri -OutFile $exe -UserAgent 'azeroth-forever-ci'
+                if ((Get-Item $exe).Length -lt 50MB) { throw 'Unexpected Boost download size.' }
+                break
+              } catch {
+                if ($attempt -eq 3) { throw }
+                Start-Sleep -Seconds 12
+              }
+            }
+            $proc = Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR=C:\local\boost_1_87_0' -PassThru -Wait
+            if ($proc.ExitCode -ne 0) { throw "Boost installation failed: $($proc.ExitCode)" }
+          }
+          if (-not (Test-Path 'C:\local\boost_1_87_0\lib64-msvc-14.3')) {
+            throw 'Boost MSVC libraries not found.'
+          }
+          if (-not (Test-Path 'C:\tools\mysql\current\lib\mysqlclient.lib')) {
+            $zip = Join-Path $env:RUNNER_TEMP 'mysql-8.4.zip'
+            Invoke-WebRequest -Uri 'https://cdn.mysql.com/archives/mysql-8.4/mysql-8.4.9-winx64.zip' -OutFile $zip -UserAgent 'Mozilla/5.0'
+            if ((Get-Item $zip).Length -lt 50MB) { throw 'Unexpected MySQL download size.' }
+            New-Item -ItemType Directory -Force -Path 'C:\tools\mysql' | Out-Null
+            Expand-Archive -Path $zip -DestinationPath 'C:\tools\mysql' -Force
+            if (Test-Path 'C:\tools\mysql\current') { Remove-Item 'C:\tools\mysql\current' -Force -Recurse }
+            Rename-Item 'C:\tools\mysql\mysql-8.4.9-winx64' 'current'
+          }
+          if (-not (Test-Path 'C:\tools\mysql\current\lib\mysqlclient.lib')) {
+            throw 'MySQL client import library not found.'
+          }
+
+      - name: Configure full native CoA server build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ssl = @('C:\Program Files\OpenSSL', 'C:\Program Files\OpenSSL-Win64', 'C:\vcpkg\installed\x64-windows') |
+            Where-Object { Test-Path (Join-Path $_ 'include\openssl\opensslv.h') } |
+            Select-Object -First 1
+          if (-not $ssl) { throw 'OpenSSL development headers unavailable.' }
+
+          cmake -S . -B build -G Ninja \`
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \`
+            -DAPPS_BUILD=all -DTOOLS_BUILD=none \`
+            -DBUILD_TESTING=ON \`
+            -DSCRIPTS=static -DMODULES=static \`
+            -DUSE_COREPCH=0 -DUSE_SCRIPTPCH=0 \`
+            -DCMAKE_JOB_POOLS=link_pool=1 -DCMAKE_JOB_POOL_LINK=link_pool \`
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded \`
+            "-DBOOST_ROOT=$env:BOOST_ROOT" \`
+            -DMYSQL_INCLUDE_DIR=C:/tools/mysql/current/include \`
+            -DMYSQL_LIBRARY=C:/tools/mysql/current/lib/mysqlclient.lib \`
+            "-DOPENSSL_ROOT_DIR=$ssl"
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
+
+      - name: Verify Windows worldserver and authserver compilation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -B tools/verify_all.py --stages build,unit
+          if ($LASTEXITCODE -ne 0) { throw 'CoA compilation/unit tests failed. Read uploaded diagnostic artifact.' }
+
+      - name: Upload compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-compilation-diagnostics-\${{ github.run_number }}
+          path: |
+            .cache/verify-all/**/report.json
+            .cache/verify-all/**/build.log
+            .cache/verify-all/**/unit.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Stage compatible Windows server binaries
+        if: success()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $world = Get-ChildItem -Path build -Recurse -Filter worldserver.exe -File | Select-Object -First 1
+          if (-not $world) { throw 'worldserver.exe missing after build.' }
+          $auth = Join-Path $world.DirectoryName 'authserver.exe'
+          if (-not (Test-Path $auth)) { throw 'authserver.exe missing after build.' }
+          Copy-Item $world.FullName out/
+          Copy-Item $auth out/
+          Get-ChildItem $world.DirectoryName -Filter *.dll -File | Copy-Item -Destination out/
+          @(
+            'Azeroth Forever native Windows server binaries'
+            "Source commit: $env:GITHUB_SHA"
+            'These binaries require a separately prepared compatible CoA installation and its'
+            'MySQL database, client-extracted DBC/maps/vmaps/mmaps, settings, and applicable SQL updates.'
+            'Back up player characters and database before replacing any binaries.'
+            'The downloadable portable bootstrap ZIP is a separate artifact.'
+          ) | Set-Content out/README.txt
+          & (Join-Path $world.DirectoryName 'worldserver.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'Worldserver binary failed --version smoke test.' }
+
+      - name: Publish compiled executable artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-Windows-Binaries-\${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
