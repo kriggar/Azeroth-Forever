@@ -31,3 +31,25 @@ DELETE FROM `gameobject` WHERE `id` = 239828;
 
 -- The rows defining client/display templates are deliberately preserved.
 -- CoA class trainers, custom map data, and required quest objects are untouched.
+
+-- Worldforged ground loot objects (the module owns approximately 2,469 placements).
+-- Their templates and spawns are explicitly labeled worldforged_pickup by
+-- modules/mod-worldforged-pickups/data/sql/db-world/*.sql. Leave all ordinary
+-- quest objects and all CoA class-chain GOs alone, regardless of their map.
+-- Keep item/loot definitions and character ledgers intact for a reversible rollback.
+DELETE g FROM `gameobject` AS g
+JOIN `gameobject_template` AS t ON t.`entry` = g.`id`
+WHERE t.`ScriptName` = 'worldforged_pickup'
+  AND (g.`ScriptName` = 'worldforged_pickup'
+    OR g.`guid` BETWEEN 6900001 AND 6999999
+    OR g.`Comment` LIKE 'AscensionWorldforged%'
+    OR g.`Comment` LIKE 'Worldforged%');
+
+-- Optional extra world fixtures, not CoA class trainers or their quest props.
+-- Hero's Call / Warchief's Command Board (mod-hero-call-board).
+DELETE FROM `gameobject` WHERE `id` IN (402000, 402001);
+
+-- Optional forestry resource-node spawns authored by rev_20260928_82_woodcutting_spawns.
+-- Do not remove unrelated objects or classic interactable trees by name.
+DELETE FROM `gameobject`
+WHERE `id` = 244614 AND `guid` BETWEEN 8000000 AND 8200000;
