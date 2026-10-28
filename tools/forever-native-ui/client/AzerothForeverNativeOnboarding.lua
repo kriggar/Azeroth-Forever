@@ -132,9 +132,11 @@ local function updateNav()
     O.progress:SetText(O.step.." / 5  •  "..({
         "RULESET","EXPERIENCE","CHARACTER","SOCIAL CONTRACT","SUMMARY"
     })[O.step])
-    if O.back then O.back:SetShown(O.step>1) end
+    if O.back then
+        if O.step>1 then O.back:Show() else O.back:Hide() end
+    end
     O.next:SetText(O.step==5 and "Close Preview" or "Continue")
-    O.next:SetEnabled(O.step~=4 or O.consent)
+    if O.step~=4 or O.consent then O.next:Enable() else O.next:Disable() end
     if O.note then O.note:SetText(O.status) end
 end
 local function redraw()
@@ -208,17 +210,55 @@ local function redraw()
     elseif O.step==3 then
         head("CREATE YOUR CHARACTER",
              "The genuine CoA creator owns race/class compatibility, appearance, spells, and character creation.")
-        own(text(O.frame,"Choose a CoA class",40,-175,450,"GameFontNormalLarge",{1,.83,.49}))
-        for i,name in ipairs(O.sourceClasses) do
-            local col=(i-1)%4 local row=math.floor((i-1)/4)
-            local x=42+col*241 local y=-204-row*45
-            own(button(O.frame,(name==O.class and "• " or "")..name,x,y,223,31,function()
-                O.class=name
-                redraw()
-            end))
+        local function paneChoice(p)
+            O.characterPane=p
+            redraw()
         end
-        own(text(O.frame,"These are class-selection previews. Creating a real character still uses the native CoA creation screen.",
-            38,-501,950,"GameFontHighlightSmall",{.74,.77,.82}))
+        own(button(O.frame,"Class",48,-159,162,27,function() paneChoice("class") end))
+        own(button(O.frame,"Identity / Appearance",226,-159,226,27,function() paneChoice("identity") end))
+        if O.characterPane=="identity" then
+            own(text(O.frame,"Faction",53,-213,250,"GameFontNormalLarge",{1,.8,.44}))
+            own(button(O.frame,"Alliance",53,-245,160,29,function() O.faction="Alliance" redraw() end))
+            own(button(O.frame,"Horde",232,-245,160,29,function() O.faction="Horde" redraw() end))
+            own(text(O.frame,"Selected faction: "..(O.faction or "Alliance"),411,-251,412,"GameFontHighlight"))
+            local races={"Human","Dwarf","Night Elf","Gnome","Orc","Undead","Tauren","Troll"}
+            for i,race in ipairs(races) do
+                local col=(i-1)%4 local row=math.floor((i-1)/4)
+                local x=54+col*231 local y=-307-row*41
+                own(button(O.frame,(O.race==race and "* " or "")..race,x,y,214,29,function()
+                    O.race=race redraw()
+                end))
+            end
+            own(text(O.frame,"Character name and surname",55,-397,450,"GameFontNormalLarge",{1,.82,.48}))
+            local function entry(value,x,onChange)
+                local edit=own(CreateFrame("EditBox",nil,O.frame,"InputBoxTemplate"))
+                edit:SetWidth(365)
+                edit:SetHeight(30)
+                edit:SetPoint("TOPLEFT",O.frame,"TOPLEFT",x,-430)
+                edit:SetAutoFocus(false)
+                edit:SetMaxLetters(12)
+                edit:SetText(value or "")
+                edit:SetScript("OnTextChanged",function(self)
+                    onChange(self:GetText())
+                end)
+                edit:SetScript("OnEscapePressed",function(self) self:ClearFocus() end)
+                edit:SetScript("OnEnterPressed",function(self) self:ClearFocus() end)
+            end
+            entry(O.name,68,function(t) O.name=t end)
+            entry(O.surname,530,function(t) O.surname=t end)
+        else
+            own(text(O.frame,"Choose a CoA class",40,-207,450,"GameFontNormalLarge",{1,.83,.49}))
+            for i,name in ipairs(O.sourceClasses) do
+            local col=(i-1)%4 local row=math.floor((i-1)/4)
+            local x=42+col*241 local y=-235-row*41
+                own(button(O.frame,(name==O.class and "* " or "")..name,x,y,223,29,function()
+                    O.class=name
+                    redraw()
+                end))
+            end
+        end
+        own(text(O.frame,"Identity and class are previews; the actual CoA creator validates races, names, classes and character creation.",
+            38,-520,950,"GameFontHighlightSmall",{.74,.77,.82}))
     elseif O.step==4 then
         head("A WORLD TO EXPLORE TOGETHER",
              "Acknowledge community conduct expectations before beginning your journey.")
@@ -239,13 +279,15 @@ local function redraw()
             {"Ruleset", O.ruleset},
             {"Experience",O.preset},
             {"Class", O.class},
+            {"Race / faction", (O.race or "Night Elf").." / "..(O.faction or "Alliance")},
+            {"Character", ((O.name or "").." "..(O.surname or "")):match("^%s*(.-)%s*$") ~= "" and ((O.name or "").." "..(O.surname or "")) or "Choose on CoA character screen"},
             {"Transmog", O.transmog and "Visible" or "Hidden"},
             {"Character models",O.hdModels and "HD (requires future client work)" or "Standard"},
             {"Quest guidance",O.questMarkers and "Enabled" or "Disabled"},
             {"Combined bags",O.oneBag and "On" or "Off"},
         }
         for i,kv in ipairs(summary) do
-            local y=-168-(i-1)*41
+            local y=-167-(i-1)*36
             own(text(O.frame,kv[1],90,y,260,"GameFontNormal",{1,.83,.5}))
             own(text(O.frame,kv[2],354,y,500,"GameFontHighlight",{.90,.91,.95}))
         end
