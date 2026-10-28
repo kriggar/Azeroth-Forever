@@ -12,6 +12,7 @@ local function frame(name, initiallyShown)
         if self.hooks.OnHide then self.hooks.OnHide(self) end
     end
     function f:IsShown() return self.shown end
+    function f:RegisterEvent() end
     function f:SetScript(event,func) self.scripts[event]=func end
     function f:HookScript(event,func) self.hooks[event]=func end
     function f:SetText(text) self.text=text end
