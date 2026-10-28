@@ -34,8 +34,9 @@ jobs:
           sudo apt-get install -y -qq lua5.1
       - name: Validate native UI loader and class-safe patch builder
         run: |
-          luac5.1 -p tools/forever-native-ui/client/AzerothForeverNativeBegin.lua
-          luac5.1 -p tools/forever-native-ui/client/AzerothForeverNativeEnd.lua
+          for file in tools/forever-native-ui/client/*.lua; do
+            luac5.1 -p "$file"
+          done
           python3 -m unittest discover -s tools/forever-native-ui/tests -p "test_*.py" -v
       - name: Verify complete upstream full-UI source Lua syntax
         run: |
@@ -96,6 +97,8 @@ jobs:
           cmp "$RUNNER_TEMP/original-coa/CoA/Classes/CustomClass.dat" "$RUNNER_TEMP/ui/merged-content/CoA/Classes/CustomClass.dat"
           grep -q 'AscensionClassBridge.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           grep -q 'AzerothForeverNativeBegin.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeSettings.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeTransmog.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
       - name: Publish Windows native UI installer source only
         uses: actions/upload-artifact@v4
         with:
@@ -183,7 +186,9 @@ jobs:
           $loader = Get-Content (Join-Path $extracted 'Interface\FrameXML\FrameXML.toc') -Raw
           if ($loader -notmatch 'AscensionClassBridge.lua' -or
               $loader -notmatch 'UIParent.xml' -or
-              $loader -notmatch 'AzerothForeverNativeBegin.lua') {
+              $loader -notmatch 'AzerothForeverNativeBegin.lua' -or
+              $loader -notmatch 'AzerothForeverNativeSettings.lua' -or
+              $loader -notmatch 'AzerothForeverNativeTransmog.lua') {
             throw 'Stock 3.3.5 XML loader, CoA class loader or native UI loader is missing'
           }
           $afterBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
