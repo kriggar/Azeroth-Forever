@@ -64,3 +64,15 @@ CoA talents remain **client-load-on-demand** through the owner's existing `Ascen
 The appearance is still **in-game unverified** until the patched client is launched and class/spec trees are opened. The required goal is parity with WoW: Forever's modern talent-panel appearance while retaining the CoA talent function. Do not claim this is finished just because the native Lua and MPQ tests pass.
 
 The full mandatory client panel list, with per-panel implementation status, is maintained at `tools/forever-native-ui/ui_contract.json`. Unimplemented gamepad/Legacy/Camping/new renderer functionality is tracked explicitly instead of falsely presenting the old client as a 2026 game client.
+
+## Approved first-screen talent layout (replaces rejected spec-card drafts)
+
+Opening Talents on any of the 21 CoA classes must show its **real connected Class and Specialization talent trees immediately**. The old CoA four-card screen and the rejected new black sidebar/card screen have both been removed from the native package. The reference aesthetic is the user's approved WoW: Forever screenshot: framed atmospheric background, dense connected node branches, rank counts on each original CoA node, an unobtrusive specialization selector, and unobstructed bottom Save/Undo controls.
+
+The CoA client supplies **two** talent trees rather than the classic three (Class plus the selected Specialization). We do not invent a third tree or replace a CoA talent with stock Arms/Fury/Protection talent data. The modern look adapts the official reference to those two original CoA trees.
+
+`AzerothForeverCoATreeHome.lua` makes the native CoATalentFrame.TreeView the default first page; `AzerothForeverCoATalents.lua` styles the original tree backgrounds/headers and retains original point counts. Buttons use the existing CoASpecChoiceMixin.OnSelected handler and server-side C_CharacterAdvancement validation. All changes are inside the native client MPQ, not an additional addon. There is no fake talent tree data.
+
+The trial-specific micro/menu-button cleanup and a consolidated Escape > Options/Edit Mode panel are in `AzerothForeverNativeGameMenu.lua`. Only identified Ascension-only trial controls are suppressed; the original client secure Logout/Quit/Return handlers remain. The exact Ascension trial icon in the user's client still needs in-game verification; keep that item marked pending rather than assume its runtime name.
+
+**Release gate:** unit/Lua syntax, MPQ file verification and Windows upgrade/restore tests do not establish visual parity. The user's live screenshots are the final acceptance test for (1) direct first-screen CoA tree, (2) recognizable Forever styling, (3) removal of specific Trial icon, (4) no duplicate/broken UI controls, and (5) every CoA node/Save handler functional.
