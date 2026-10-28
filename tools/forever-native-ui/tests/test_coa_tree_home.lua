@@ -16,6 +16,7 @@ local function frame(name, initiallyShown)
     function f:SetScript(event,func) self.scripts[event]=func end
     function f:HookScript(event,func) self.hooks[event]=func end
     function f:SetText(text) self.text=text end
+    function f:SetJustifyH() end
     function f:GetText() return self.text end
     function f:SetHeight() end
     function f:SetWidth() end
