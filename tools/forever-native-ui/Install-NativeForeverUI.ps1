@@ -63,7 +63,9 @@ if ($Restore) {
             if ((Get-FileHash -Algorithm SHA256 -LiteralPath $tempRestore).Hash.ToLowerInvariant() -ne $originalSha) {
                 throw 'Original patch backup failed copy verification.'
             }
-            [System.IO.File]::Replace($tempRestore, $patch, $null, $true)
+            $discardedPatch = Join-Path $data ('.patch-Z-replaced-on-restore-' + [guid]::NewGuid().ToString('N') + '.bak')
+            [System.IO.File]::Replace($tempRestore, $patch, $discardedPatch, $true)
+            if (Test-Path -LiteralPath $discardedPatch) { Remove-Item -LiteralPath $discardedPatch -Force }
         } finally {
             if (Test-Path -LiteralPath $tempRestore) { Remove-Item -LiteralPath $tempRestore -Force }
         }
@@ -207,6 +209,8 @@ if ($existingPatch) {
 }
 $backupAddon = $null
 $swapped = $false
+$installationComplete = $false
+$swapBackup = $null
 $pending = Join-Path $data ('.patch-Z-azeroth-forever-' + [guid]::NewGuid().ToString('N') + '.tmp')
 try {
     # Ensure the client patch is never partially written: stage on the same
@@ -219,7 +223,8 @@ try {
         if ((Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant() -ne $originalSha) {
             throw 'The original patch changed after backup; refusing to replace it.'
         }
-        [System.IO.File]::Replace($pending, $patch, $null, $true)
+        $swapBackup = Join-Path $data ('.patch-Z-atomic-swap-backup-' + [guid]::NewGuid().ToString('N') + '.bak')
+        [System.IO.File]::Replace($pending, $patch, $swapBackup, $true)
     } else {
         [System.IO.File]::Move($pending, $patch)
     }
@@ -246,6 +251,7 @@ try {
         gameExecutable = (Split-Path -Leaf $exe)
         clientTestedInGame = $false
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifest -Encoding UTF8
+    $installationComplete = $true
 } catch {
     # If a later step failed, put the player's *original* patch back.
     # Never delete an original MPQ as a way of fixing the installation.
@@ -255,7 +261,11 @@ try {
             $restorePending = Join-Path $data ('.patch-Z-emergency-' + [guid]::NewGuid().ToString('N') + '.tmp')
             Copy-Item -LiteralPath $backupPatch -Destination $restorePending
             if ((Get-FileHash -Algorithm SHA256 -LiteralPath $restorePending).Hash.ToLowerInvariant() -eq $originalSha) {
-                [System.IO.File]::Replace($restorePending, $patch, $null, $true)
+                $emergencyOldPatch = Join-Path $data ('.patch-Z-emergency-swap-' + [guid]::NewGuid().ToString('N') + '.bak')
+                [System.IO.File]::Replace($restorePending, $patch, $emergencyOldPatch, $true)
+                if (Test-Path -LiteralPath $emergencyOldPatch) {
+                    Remove-Item -LiteralPath $emergencyOldPatch -Force
+                }
             } else {
                 Write-Warning "Original MPQ retained at $backupPatch; automatic restore could not be verified."
             }
@@ -269,6 +279,12 @@ try {
     throw
 } finally {
     if (Test-Path -LiteralPath $pending) { Remove-Item -LiteralPath $pending -Force }
+    # Clean the short-lived swap backup ONLY after the permanent, hash-checked
+    # original patch backup and manifest both exist. If installation fails,
+    # retaining this extra copy is safer than silently losing it.
+    if ($installationComplete -and $swapBackup -and (Test-Path -LiteralPath $swapBackup)) {
+        Remove-Item -LiteralPath $swapBackup -Force
+    }
 }
 Write-Host 'Native full-interface patch installed; CoA source archive was backed up and preserved.'
 Write-Host 'No addon or game executable was patched. CoA class and map assets remain in the archive.'
