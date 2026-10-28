@@ -57,6 +57,8 @@ class ForeverUIContractTests(unittest.TestCase):
         self.assertIn('if f.name not in COA_UNSAFE_TALENT_CONTROLLERS', self.builder)
         self.assertIn('"AzerothForeverCoATalents.lua"', self.builder)
         self.assertIn('"AzerothForeverCoATreeHome.lua"', self.builder)
+        self.assertIn('"AzerothForeverCoATalentVisuals.lua"', self.builder)
+        self.assertIn('"AzerothForeverNativeMicroMenu.lua"', self.builder)
         self.assertIn('CoATalentFrame', self.coa)
         self.assertIn('C_CharacterAdvancement', self.coa)
         self.assertIn('GetActiveChrSpec', self.coa)
@@ -77,6 +79,8 @@ class ForeverUIContractTests(unittest.TestCase):
                      "AzerothForeverNativeSettings.lua",
                      "AzerothForeverNativeTransmog.lua",
                      "AzerothForeverCoATalents.lua",
+                     "AzerothForeverCoATalentVisuals.lua",
+                     "AzerothForeverNativeMicroMenu.lua",
                      "AzerothForeverCoATreeHome.lua",
                      "AzerothForeverNativeGameMenu.lua"):
             self.assertIn(name, self.builder)
@@ -92,6 +96,12 @@ class ForeverUIContractTests(unittest.TestCase):
         self.assertEqual(
             self.panels["settings"]["status"], "native_extension")
         self.assertIn("not pixel-perfect", self.manifest["validation"])
+        self.assertIn("AzerothForeverNativeOnboarding.lua",self.builder)
+        self.assertIn("UNSHIPPED_PROTOTYPES",self.builder)
+        self.assertIn("AzerothForeverCoATalentVisuals.lua",
+                      self.panels["talent_panel"]["source"])
+        self.assertIn("AzerothForeverNativeMicroMenu.lua",
+                      self.panels["game_menu"]["source"])
 
 
 if __name__ == "__main__":
