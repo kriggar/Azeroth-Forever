@@ -26,7 +26,7 @@ $defaults = "--defaults-extra-file=$clientSettings"
 
 # This is the main (CoA) world DB only. Other realms use separate schemas.
 # Refuse to modify an unknown realm database.
-$names = & $mysql $defaults '--batch' '--skip-column-names' '--execute=SHOW DATABASES LIKE "acore_world";' 2>&1
+$names = & $mysql $defaults '--batch' '--skip-column-names' '--execute=SHOW DATABASES LIKE ''acore_world'';' 2>&1
 if ($LASTEXITCODE -ne 0 -or ($names -join '').Trim() -ne $database) {
     throw 'Default CoA world database not found or unavailable. No changes were made.'
 }
@@ -37,7 +37,7 @@ FROM gameobject AS g JOIN gameobject_template AS t ON t.entry=g.id
 WHERE g.id IN (402000,402001);
 SELECT "Experimental Teleporter", g.guid, g.id, t.name
 FROM gameobject AS g JOIN gameobject_template AS t ON t.entry=g.id
-WHERE t.ScriptName="go_coa_experimental_teleporter";
+WHERE t.ScriptName='go_coa_experimental_teleporter';
 '@
 Write-Host 'Verified objects present in the local CoA world database:'
 & $mysql $defaults "--database=$database" '--batch' '--raw' "--execute=$report"
