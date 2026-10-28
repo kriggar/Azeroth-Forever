@@ -120,7 +120,7 @@ local function showSlot(slot)
         end
     end
     if S.empty then
-        S.empty:SetShown(false)
+        S.empty:Hide()
         if #entries==0 then
             S.empty:SetText(S.capable and "No collected appearances for this slot."
                 or "A transmog server backend is required to load appearances.")
@@ -170,7 +170,7 @@ local function readProtocol(data)
     if data=="Open" then
         S.npcOpen=true
         S.capable=true
-        if S.frame then S.frame:Show() end
+        if AF.OpenTransmog then AF.OpenTransmog(false) end
         send("GetTransmogStatus")
         send("GetAvailableTransmogs")
         return
@@ -298,7 +298,7 @@ local function make()
     S.rows={}
     for n=1,24 do
         local row=CreateFrame("Button",nil,right)
-        local col=math.mod(n-1,4)
+        local col=(n-1)%4
         local rr=math.floor((n-1)/4)
         row:SetWidth(50) row:SetHeight(50)
         row:SetPoint("TOPLEFT",right,"TOPLEFT",15+col*61,-86-rr*53)
@@ -357,9 +357,8 @@ listener:SetScript("OnEvent",function(self,event,prefix,data,channel)
         return
     end
     if event=="GOSSIP_CLOSED" then
-        if S.frame and S.frame:IsShown() and S.npcOpen then
-            S.frame:Hide()
-        end
+        -- Hiding the stock gossip frame as we open the native panel can fire
+        -- GOSSIP_CLOSED; do not hide our entire window in that same transition.
         return
     end
     if event=="GOSSIP_SHOW" then
