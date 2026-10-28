@@ -174,6 +174,29 @@ SlashCmdList["AZEROTHFOREVERNATIVE"] = function(msg)
     command = string.lower(command or "")
     if command == "scale" then
         if not AF.SetScale(tonumber(arg)) then notice("Usage: /afui scale 0.80") end
+    elseif command == "audit" then
+        local coa=AF.CoATalents
+        local home=AF.CoATreeHome
+        local art=AF.CoATreeVisuals
+        local micro=AF.MicroMenu
+        local menu=AF.GameMenu
+        local frame=_G.CoATalentFrame
+        notice("Native Client UI Build: " .. tostring(AF.version))
+        notice("CoA tree: "..tostring(home and home.treesOpened) ..
+               " | original talent controls: "..
+               tostring(coa and coa.HasOriginalHandlers and coa.HasOriginalHandlers(frame)))
+        notice("Forever talent nodes styled: " .. tostring(art and art.nodeCount or 0) ..
+               " | visual errors: " .. tostring(art and art.lastError or "none"))
+        local removed=0
+        if micro and micro.removed then
+            for name in pairs(micro.removed) do removed=removed+1 end
+        end
+        notice("Micro buttons: "..tostring(micro and micro.lastCount or "n/a")..
+               " | custom buttons removed: "..tostring(removed)..
+               " | Esc menu: "..tostring(menu and menu.installed))
+        local errors=AzerothForeverNativeBootstrap and
+                     AzerothForeverNativeBootstrap.errors or {}
+        notice("Bootstrap errors: "..tostring(#errors))
     elseif command == "searchrestore" then
         AF.RestoreLegacySearches()
     elseif command == "errors" then
@@ -186,6 +209,6 @@ SlashCmdList["AZEROTHFOREVERNATIVE"] = function(msg)
     elseif command == "transmog" then
         if AF.OpenTransmog then AF.OpenTransmog(true) else notice("Transmog panel is unavailable.") end
     else
-        notice("/afui settings | scale 0.80 | errors | searchrestore")
+        notice("/afui audit | settings | scale 0.80 | errors | searchrestore")
     end
 end
