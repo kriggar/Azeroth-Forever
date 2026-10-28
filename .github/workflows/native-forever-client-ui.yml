@@ -1,0 +1,271 @@
+name: Build and validate native Forever interface (not an addon)
+
+on:
+  push:
+    branches: [feature/vanilla-coa-baseline]
+    paths:
+      - 'tools/forever-native-ui/**'
+      - '.github/workflows/native-forever-client-ui.yml'
+  pull_request:
+    paths:
+      - 'tools/forever-native-ui/**'
+      - '.github/workflows/native-forever-client-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Installing two successive UI revisions on test clients is expensive. Keep
+# only the latest commit for a branch; prior unneeded runs are cancelled.
+concurrency:
+  group: native-forever-ui-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Azeroth Forever native client integration
+        uses: actions/checkout@v4
+      - name: Checkout pinned GPL-2.0 full UI port (no artifacts committed to our repository)
+        uses: actions/checkout@v4
+        with:
+          repository: Adrestie/mod-forever-ui
+          ref: c5149b96a9938ae9073ff8bb1662e42d2b7b5090
+          path: ui-upstream
+      - name: Install Lua 5.1 syntax compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.1
+      - name: Validate native UI loader and class-safe patch builder
+        run: |
+          for file in tools/forever-native-ui/client/*.lua; do
+            luac5.1 -p "$file"
+          done
+          python3 -m unittest discover -s tools/forever-native-ui/tests -p "test_*.py" -v
+          lua5.1 tools/forever-native-ui/tests/test_coa_talent_bridge.lua
+          lua5.1 tools/forever-native-ui/tests/test_coa_tree_home.lua
+          lua5.1 tools/forever-native-ui/tests/test_native_game_menu.lua
+          lua5.1 tools/forever-native-ui/tests/test_coa_talent_visuals.lua
+          lua5.1 tools/forever-native-ui/tests/test_native_micro_menu.lua
+      - name: Verify complete upstream full-UI source Lua syntax
+        run: |
+          while IFS= read -r file; do
+            case "$file" in ""|\#*) continue ;; esac
+            luac5.1 -p "ui-upstream/data/addon/ForeverUI/$file"
+          done < ui-upstream/data/addon/ForeverUI/ForeverUI.toc
+      - name: Parse PowerShell one-click installer scripts
+        shell: pwsh
+        run: |
+          Get-ChildItem tools/forever-native-ui -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw "PowerShell syntax error in $($_.Name): $($errors[0])" }
+          }
+      - name: Download and verify open-source MPQ archive CLI
+        run: |
+          curl --fail --location --retry 3 \
+            -o "$RUNNER_TEMP/mpqcli" \
+            https://github.com/thegraydot/mpqcli/releases/download/v0.11.0/mpqcli-linux-amd64-glibc
+          printf '%s  %s\n' \
+            'a2583a938814b7dd32b116daf96376648b476e0399856c85f7013d31938ab9db' \
+            "$RUNNER_TEMP/mpqcli" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/mpqcli"
+          "$RUNNER_TEMP/mpqcli" version
+      - name: Construct a full native MPQ against a representative CoA FrameXML table
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ui"
+          printf 'Bindings.xml\nUIParent.lua\nAscensionClientCompat.lua\n' > "$RUNNER_TEMP/ui/FrameXML.toc"
+          python3 tools/forever-native-ui/build_native_patch.py \
+            --upstream ui-upstream \
+            --toc-file "$RUNNER_TEMP/ui/FrameXML.toc" \
+            --mpqcli "$RUNNER_TEMP/mpqcli" \
+            --output "$RUNNER_TEMP/ui/patch-Z.MPQ"
+          test -s "$RUNNER_TEMP/ui/patch-Z.MPQ"
+          grep -q '"native_loader_entries"' "$RUNNER_TEMP/ui/patch-Z.MPQ.json"
+      - name: Test merge against a non-empty existing CoA patch-Z.MPQ
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/original-coa/Interface/FrameXML"
+          mkdir -p "$RUNNER_TEMP/original-coa/CoA/Classes"
+          printf 'UIParent.lua\nAscensionClassBridge.lua\n' > "$RUNNER_TEMP/original-coa/Interface/FrameXML/FrameXML.toc"
+          printf 'CLASS_ASSET_WILL_NOT_BE_REMOVED\n' > "$RUNNER_TEMP/original-coa/CoA/Classes/CustomClass.dat"
+          "$RUNNER_TEMP/mpqcli" create --game wow-wotlk --output "$RUNNER_TEMP/ui/original-patch-Z.MPQ" "$RUNNER_TEMP/original-coa"
+          ORIG_SHA=$(sha256sum "$RUNNER_TEMP/ui/original-patch-Z.MPQ" | cut -d' ' -f1)
+          python3 tools/forever-native-ui/build_native_patch.py \
+            --upstream ui-upstream \
+            --toc-file "$RUNNER_TEMP/ui/FrameXML.toc" \
+            --merge-archive "$RUNNER_TEMP/ui/original-patch-Z.MPQ" \
+            --mpqcli "$RUNNER_TEMP/mpqcli" \
+            --output "$RUNNER_TEMP/ui/merged-patch-Z.MPQ"
+          test "$(sha256sum "$RUNNER_TEMP/ui/original-patch-Z.MPQ" | cut -d' ' -f1)" = "$ORIG_SHA"
+          grep -q '"merged_existing_patch": true' "$RUNNER_TEMP/ui/merged-patch-Z.MPQ.json"
+          "$RUNNER_TEMP/mpqcli" extract --keep --output "$RUNNER_TEMP/ui/merged-content" "$RUNNER_TEMP/ui/merged-patch-Z.MPQ" > /dev/null
+          cmp "$RUNNER_TEMP/original-coa/CoA/Classes/CustomClass.dat" "$RUNNER_TEMP/ui/merged-content/CoA/Classes/CustomClass.dat"
+          grep -q 'AscensionClassBridge.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeBegin.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeSettings.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverCoATalentVisuals.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeMicroMenu.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          if grep -q 'AzerothForeverNativeOnboarding.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"; then
+            echo 'Error: fake in-world first-login prototype must not ship'
+            exit 1
+          fi
+          grep -q 'AzerothForeverNativeTransmog.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverCoATalents.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          if grep -q -i 'AzerothForeverNative\\Talents.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"; then
+            echo 'BUG: Stock WotLK talents are being loaded over CoA class talents'
+            exit 1
+          fi
+      - name: Publish Windows native UI installer source only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-Native-UI-Installer-EXPERIMENTAL
+          path: tools/forever-native-ui/
+          if-no-files-found: error
+          retention-days: 7
+
+  windows-install-and-restore:
+    needs: native-ui
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout native UI installer
+        uses: actions/checkout@v4
+      - name: Checkout the pinned full UI source
+        uses: actions/checkout@v4
+        with:
+          repository: Adrestie/mod-forever-ui
+          ref: c5149b96a9938ae9073ff8bb1662e42d2b7b5090
+          path: ui-upstream
+      - name: Install test Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproduce CoA patch-B UIParent.xml and existing patch-Z installation and rollback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'CoA Client Fixture'
+          $data = Join-Path $root 'Data'
+          # Reproduce user's actual setup: patch-Z.MPQ already exists, but
+          # patch-B.MPQ holds a STOCK 3.3.5 UIParent.xml FrameXML.toc.
+          $seed = Join-Path $env:RUNNER_TEMP 'seed'
+          $seedB = Join-Path $env:RUNNER_TEMP 'seed-B'
+          $base = Join-Path $seedB 'Interface\FrameXML'
+          $custom = Join-Path $seed 'CoA\Classes'
+          New-Item -ItemType Directory -Path $data, $base, $custom -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $root 'Wow.exe') -Value 'fixture-only'
+          $originalToc = "## Interface: 30300$([Environment]::NewLine)WorldFrame.xml$([Environment]::NewLine)UIParent.xml$([Environment]::NewLine)AscensionClassBridge.lua"
+          Set-Content -LiteralPath (Join-Path $base 'FrameXML.toc') -Value $originalToc
+          Set-Content -LiteralPath (Join-Path $custom 'CustomClass.dat') -Value 'ORIGINAL_COA_CLASS_ASSET'
+          $legacyAddon = Join-Path $root 'Interface\AddOns\AzerothForeverUI'
+          New-Item -ItemType Directory -Force -Path $legacyAddon | Out-Null
+          Set-Content -LiteralPath (Join-Path $legacyAddon 'old-addon.txt') -Value 'original toolbar'
+          $toolRoot = Join-Path $env:LOCALAPPDATA 'AzerothForever\NativeUI'
+          $toolDir = Join-Path $toolRoot 'tools'
+          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
+          $cli = Join-Path $toolDir 'mpqcli-windows-amd64.exe'
+          & curl.exe --fail --location --retry 3 -o "$cli" https://github.com/thegraydot/mpqcli/releases/download/v0.11.0/mpqcli-windows-amd64.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download MPQ test tool' }
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $cli).Hash.ToLowerInvariant()
+          if ($digest -ne 'ca4bc40d24ff0ae094e8e6118591a59cecb56b9227923e806e9a116d5e761277') {
+            throw 'MPQ tool hash mismatch'
+          }
+          & $cli create --game wow-wotlk --output (Join-Path $data 'patch-B.MPQ') $seedB
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create authentic 3.3.5 patch-B loader fixture' }
+          & $cli create --game wow-wotlk --output (Join-Path $data 'patch-Z.MPQ') $seed
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create existing CoA patch-Z fixture' }
+          $originalSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          $originalBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
+          $sourceRoot = Join-Path $toolRoot 'mod-forever-ui-c5149b96a9938ae9073ff8bb1662e42d2b7b5090'
+          Copy-Item -LiteralPath 'ui-upstream' -Destination $sourceRoot -Recurse
+          $script = (Resolve-Path 'tools/forever-native-ui/Install-NativeForeverUI.ps1').Path
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -FrameXMLArchive (Join-Path $data 'patch-B.MPQ')
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native UI installer failed with original patch-Z present' }
+          $manifest = Join-Path $data 'patch-Z.MPQ.azeroth-forever.json'
+          if (-not (Test-Path $manifest)) { throw 'Successful installation did not create a manifest' }
+          $state = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ($state.version -ne 3 -or -not (Test-Path $state.originalPatchBackup)) {
+            throw 'Missing version 3 original patch backup'
+          }
+          $savedSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $state.originalPatchBackup).Hash.ToLowerInvariant()
+          if ($savedSha -ne $originalSha) { throw 'Original patch backup differs from source' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant() -eq $originalSha) {
+            throw 'UI was not added to the test patch'
+          }
+          $extracted = Join-Path $env:RUNNER_TEMP 'merged-test-extract'
+          & $cli extract --keep --output $extracted (Join-Path $data 'patch-Z.MPQ') | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Installed merged MPQ could not be read' }
+          $classAsset = Get-Content (Join-Path $extracted 'CoA\Classes\CustomClass.dat') -Raw
+          if ($classAsset -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
+            throw 'Existing CoA class content changed'
+          }
+          $loader = Get-Content (Join-Path $extracted 'Interface\FrameXML\FrameXML.toc') -Raw
+          if ($loader -notmatch 'AscensionClassBridge.lua' -or
+              $loader -notmatch 'UIParent.xml' -or
+              $loader -notmatch 'AzerothForeverNativeBegin.lua' -or
+              $loader -notmatch 'AzerothForeverNativeSettings.lua' -or
+              $loader -notmatch 'AzerothForeverNativeTransmog.lua' -or
+              $loader -notmatch 'AzerothForeverCoATreeHome.lua' -or
+              $loader -notmatch 'AzerothForeverCoATalentVisuals.lua' -or
+              $loader -notmatch 'AzerothForeverNativeMicroMenu.lua') {
+            throw 'Stock 3.3.5 XML loader, CoA class loader or native UI loader is missing'
+          }
+          $afterBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
+          if ($afterBSha -ne $originalBSha) { throw 'Installer changed original patch-B.MPQ' }
+          # Verify repeated one-click installations really upgrade the old
+          # UI using the original CoA MPQ, not recursive merges of old UI.
+          $originalBackup = $state.originalPatchBackup
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -FrameXMLArchive (Join-Path $data 'patch-B.MPQ')
+          if ($LASTEXITCODE -ne 0) { throw 'UI upgrade failed over an existing installed native patch' }
+          $updatedState = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ($updatedState.version -ne 3 -or $updatedState.originalPatchBackup -ne $originalBackup) {
+            throw 'Upgrade lost the pristine original CoA archive backup'
+          }
+          if ($updatedState.originalPatchSha256 -ne $originalSha) {
+            throw 'Upgraded UI lost the original CoA archive checksum'
+          }
+          $upgradedExtracted = Join-Path $env:RUNNER_TEMP 'upgraded-test-extract'
+          & $cli extract --keep --output $upgradedExtracted (Join-Path $data 'patch-Z.MPQ') | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Upgraded archive cannot be extracted' }
+          $upgradedToc = Get-Content (Join-Path $upgradedExtracted 'Interface\FrameXML\FrameXML.toc') -Raw
+          if ([regex]::Matches($upgradedToc, 'AzerothForeverCoATreeHome\.lua').Count -ne 1) {
+            throw 'Updated direct CoA talent tree view is absent or duplicated in FrameXML.toc'
+          }
+          if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverCoATreeHome.lua'))) {
+            throw 'Direct CoA talent trees script did not make it into the upgraded client archive'
+          }
+          foreach ($file in @('AzerothForeverCoATalentVisuals.lua','AzerothForeverNativeMicroMenu.lua')) {
+            if (-not (Test-Path (Join-Path $upgradedExtracted ('Interface\FrameXML\' + $file)))) {
+              throw "Required real native UI integration missing from upgraded client: $file"
+            }
+          }
+          if ($upgradedToc -match 'AzerothForeverNativeOnboarding.lua') {
+            throw 'Unimplemented first-login prototype was erroneously installed in-world'
+          }
+          if ((Get-Content (Join-Path $upgradedExtracted 'CoA\Classes\CustomClass.dat') -Raw) -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
+            throw 'Upgrading damaged the original CoA class content'
+          }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $originalBackup).Hash.ToLowerInvariant() -ne $originalSha) {
+            throw 'Upgrading modified the pristine original CoA archive backup'
+          }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant() -ne $originalBSha) {
+            throw 'Upgrade modified original FrameXML source patch-B.MPQ'
+          }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -Restore
+          if ($LASTEXITCODE -ne 0) { throw 'Restore original CoA client patch failed' }
+          $restoredSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          if ($restoredSha -ne $originalSha) { throw 'Restore did not return exact original CoA patch' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant() -ne $originalBSha) {
+            throw 'Restore changed original FrameXML source archive'
+          }
+          if (-not (Test-Path (Join-Path $legacyAddon 'old-addon.txt'))) {
+            throw 'Legacy addon was not restored as promised'
+          }
+          if (Test-Path $manifest) { throw 'Restore left installation manifest' }
+          Write-Host 'PASS: initial install, one-click upgrade from original CoA MPQ and exact rollback'

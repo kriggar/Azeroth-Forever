@@ -18,6 +18,37 @@ GetModuleSourceList(MODULES_MODULE_LIST)
 get_property(COA_SQL_DIRECTORY GLOBAL PROPERTY COA_SQL_DIRECTORY)
 list(REMOVE_ITEM MODULES_MODULE_LIST ${COA_SQL_DIRECTORY} mod-ascension-compat)
 
+# Azeroth Forever — default strict WoW: Forever-inspired profile.
+# The 21 CoA classes, their trainers, quest and map support are compiled under
+# src/server/coa and are NOT optional modules. Do not treat module names as proof
+# that the module is required for a custom quest; audit such dependencies first.
+#
+# Allowlisting is intentional: new optional modules will remain OFF automatically,
+# instead of unexpectedly adding unrelated Ascension systems on the next import.
+option(AZEROTH_FOREVER_VANILLA
+    "Use CoA classes/quests/maps with no optional Ascension gameplay modules" ON)
+set(AZEROTH_FOREVER_ALLOWED_MODULES "" CACHE STRING
+    "Semicolon-delimited audited exceptions needed by CoA quests, maps, trainers")
+if(AZEROTH_FOREVER_VANILLA)
+  set(AF_ALLOWED_MODULE_NAMES "")
+  foreach(AF_MODULE IN LISTS AZEROTH_FOREVER_ALLOWED_MODULES)
+    if(NOT AF_MODULE MATCHES "^mod-[A-Za-z0-9_-]+$")
+      message(FATAL_ERROR "Invalid Azeroth Forever module allowlist entry: ${AF_MODULE}")
+    endif()
+    list(APPEND AF_ALLOWED_MODULE_NAMES "${AF_MODULE}")
+  endforeach()
+  foreach(AF_MODULE IN LISTS MODULES_MODULE_LIST)
+    list(FIND AF_ALLOWED_MODULE_NAMES "${AF_MODULE}" AF_ALLOWED_INDEX)
+    if(AF_ALLOWED_INDEX EQUAL -1)
+      list(REMOVE_ITEM MODULES_MODULE_LIST "${AF_MODULE}")
+    endif()
+  endforeach()
+  message(STATUS "Azeroth Forever strict CoA profile: optional modules = ${MODULES_MODULE_LIST}")
+  unset(AF_MODULE)
+  unset(AF_ALLOWED_INDEX)
+  unset(AF_ALLOWED_MODULE_NAMES)
+endif()
+
 # Make the native install offset available in this scope
 GetInstallOffset(INSTALL_OFFSET)
 

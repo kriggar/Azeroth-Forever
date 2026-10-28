@@ -1,5 +1,6 @@
 /* Copyright (C) 2016+ AzerothCore, GNU AGPL v3. */
 #include "AchievementCriteriaScript.h"
+#include "Config.h"
 #include "Player.h"
 #include "RBAC.h"
 #include "ScriptMgr.h"
@@ -75,8 +76,12 @@ public:
 
 void AddAscensionAchievementConditionScripts()
 {
-    for (GameModeCriteria const& criteria : GAME_MODE_CRITERIA)
-        new AchievementGameModeCriteria(criteria);
+    // Preserve the stock WoW achievement manager, criteria and Realm First rules.
+    // Ascension's seasonal Ironman/Wildcard/Nightmare achievements are not part
+    // of our WoW: Forever-inspired default profile. Legacy is a separate system.
+    if (!sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+        for (GameModeCriteria const& criteria : GAME_MODE_CRITERIA)
+            new AchievementGameModeCriteria(criteria);
 
     new RealmFirstAchievementPermission();
 }

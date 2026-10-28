@@ -2,6 +2,7 @@
 
 #include "AscensionVoidPortal.h"
 #include "Chat.h"
+#include "Config.h"
 #include "CreatureData.h"
 #include "DBCStores.h"
 #include "DatabaseEnv.h"
@@ -351,6 +352,8 @@ public:
 
     bool OnGossipHello(Player* player, GameObject* portal) override
     {
+        if (sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+            return false;
         VoidPortalManager& manager = VoidPortalManager::Instance();
         if (!manager.IsPortal(portal->GetGUID()))
             return false;
@@ -381,8 +384,16 @@ public:
     AscensionVoidPortalWorld() : WorldScript("AscensionVoidPortalWorld",
         { WORLDHOOK_ON_STARTUP, WORLDHOOK_ON_UPDATE }) { }
 
-    void OnStartup() override { VoidPortalManager::Instance().Load(); }
-    void OnUpdate(std::uint32_t diff) override { VoidPortalManager::Instance().Update(diff); }
+    void OnStartup() override
+    {
+        if (!sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+            VoidPortalManager::Instance().Load();
+    }
+    void OnUpdate(std::uint32_t diff) override
+    {
+        if (!sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true))
+            VoidPortalManager::Instance().Update(diff);
+    }
 };
 }
 

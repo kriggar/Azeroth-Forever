@@ -1,0 +1,41 @@
+name: Validate CoA gameplay profile and legacy UI source
+
+on:
+  push:
+    branches: [feature/vanilla-coa-baseline]
+    paths:
+      - 'modules/CMakeLists.txt'
+      - 'src/server/coa/**'
+      - 'tools/forever-ui/**'
+      - 'tools/vanilla-restoration/**'
+      - '.github/workflows/forever-profile-checks.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1 syntax checker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.1
+      - name: Check obsolete preview source for syntax regression
+        run: luac5.1 -p tools/forever-ui/AzerothForeverUI/AzerothForeverUI.lua
+      - name: Verify CoA profile and cleanup guards
+        run: python3 tools/forever-ui/tests/validate_profile.py
+      - name: Publish world database cleanup scripts only (old toolbar is retired)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-WORLD-Cleanup-ONLY
+          path: |
+            tools/vanilla-restoration/
+            WOW_FOREVER_IMPLEMENTATION.md
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,9 @@
+## Interface: 30300
+## Title: Azeroth Forever - Forever UI
+## Notes: CoA-compatible modern WoW Forever-style HUD system bar using the installed client's Blizzard UI.
+## Author: Ashen Crown Studios
+## Version: 0.1.0
+## DefaultState: enabled
+## SavedVariables: AzerothForeverUISettings
+
+AzerothForeverUI.lua
