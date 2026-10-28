@@ -3,7 +3,7 @@
 ## Passed in this environment
 
 - 13 Python tests using `python -m unittest discover -s tests -p test_*.py`.
-- 19 `.lua` files parsed successfully with Lua 5.4 via the system shared library.
+- 10 `.lua` files parsed successfully with Lua 5.4 via the system shared library.
 - Three focused Lua mock tests passed: `test_native_game_menu.lua`, `test_native_micro_menu.lua`, `test_native_polish.lua`.
 - Game Menu: 8 functional rows with available native actions; button anchor/size consistency; one layout owner; Trial and redundant old menu controls hidden; original secure Logout, Quit and Return handlers preserved.
 - UI scaling: auto-upgrade old 82% default to 76%; preserve 70% chosen manually; `/afui` command remains.

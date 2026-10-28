@@ -42,7 +42,7 @@ The original patch is SHA256-checked before restore. An empty-baseline install c
 
 ## Evidence and limits
 
-**Verified locally:** 13 Python source/staging tests, 3 Lua 5.4 mocked runtime tests, and syntax parsing of 19 bundled Lua scripts. Tested conditions include aligned button geometry, preserve secure native click handlers, remove Trial UI, skip upstream competing GameMenu controller, preserve CoA original talent window, 76% scale migration, keep smaller custom scales, and hide overlapping searches only when actual geometry overlaps.
+**Verified locally:** 13 Python source/staging tests, 3 Lua 5.4 mocked runtime tests, and syntax parsing of 10 bundled Lua scripts. Tested conditions include aligned button geometry, preserve secure native click handlers, remove Trial UI, skip upstream competing GameMenu controller, preserve CoA original talent window, 76% scale migration, keep smaller custom scales, and hide overlapping searches only when actual geometry overlaps.
 
 **Not yet verified:** building a real MPQ with the third-party `mpqcli` binary, running the Windows Ascension.exe client, checking actual Esc-menu screenshots pixel-by-pixel, or online server play. These steps require a Windows/client environment and successful external build tools. Passing mock tests does not prove perfect WoW Forever visual parity.
 

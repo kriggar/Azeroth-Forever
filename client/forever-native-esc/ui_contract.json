@@ -118,7 +118,7 @@
         "AzerothForeverNativeSettings.lua"
       ],
       "status": "native_extension_unverified_in_game",
-      "behavior": "Compact UI scale default 76% when previous trial UI at 82% or useUiScale off; user custom scales are preserved. Manual /afui scale 0.76 remains available."
+      "behavior": "Compact UI scale automatically replaces previous 82% or 100% layouts with 76% on login or when useUiScale is off; lower manual values are preserved. Manual /afui scale 0.76 remains available."
     },
     "ui_edit_mode": {
       "source": [
