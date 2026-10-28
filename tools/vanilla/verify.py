@@ -61,7 +61,9 @@ def main():
     checks = {
         "src/server/coa/AscensionRulesets.cpp": [
             "AzerothForever.VanillaMode", "SPELL_SELECT_HIGH_RISK",
-            "SPELL_SELECT_WAR_MODE", "player->removeSpell(id, 0xFF, false)"
+            "SPELL_SELECT_WAR_MODE", "SPELL_SELECT_PVE",
+            "player->removeSpell(id, 0xFF, false)",
+            "SPELL_SELECT_WAR_MODE, SPELL_SELECT_HIGH_RISK, SPELL_SELECT_PVE"
         ],
         "src/server/coa/AscensionClosestResurrection.cpp": [
             "AzerothForever.VanillaMode", "SPELL_FAILED_NOT_HERE",
