@@ -74,6 +74,28 @@ jobs:
             --output "$RUNNER_TEMP/ui/patch-Z.MPQ"
           test -s "$RUNNER_TEMP/ui/patch-Z.MPQ"
           grep -q '"native_loader_entries"' "$RUNNER_TEMP/ui/patch-Z.MPQ.json"
+      - name: Test merge against a non-empty existing CoA patch-Z.MPQ
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/original-coa/Interface/FrameXML"
+          mkdir -p "$RUNNER_TEMP/original-coa/CoA/Classes"
+          printf 'UIParent.lua\nAscensionClassBridge.lua\n' > "$RUNNER_TEMP/original-coa/Interface/FrameXML/FrameXML.toc"
+          printf 'CLASS_ASSET_WILL_NOT_BE_REMOVED\n' > "$RUNNER_TEMP/original-coa/CoA/Classes/CustomClass.dat"
+          "$RUNNER_TEMP/mpqcli" create --game wow-wotlk --output "$RUNNER_TEMP/ui/original-patch-Z.MPQ" "$RUNNER_TEMP/original-coa"
+          ORIG_SHA=$(sha256sum "$RUNNER_TEMP/ui/original-patch-Z.MPQ" | cut -d' ' -f1)
+          python3 tools/forever-native-ui/build_native_patch.py \
+            --upstream ui-upstream \
+            --toc-file "$RUNNER_TEMP/ui/FrameXML.toc" \
+            --merge-archive "$RUNNER_TEMP/ui/original-patch-Z.MPQ" \
+            --mpqcli "$RUNNER_TEMP/mpqcli" \
+            --output "$RUNNER_TEMP/ui/merged-patch-Z.MPQ"
+          test "$(sha256sum "$RUNNER_TEMP/ui/original-patch-Z.MPQ" | cut -d' ' -f1)" = "$ORIG_SHA"
+          grep -q '"merged_existing_patch": true' "$RUNNER_TEMP/ui/merged-patch-Z.MPQ.json"
+          "$RUNNER_TEMP/mpqcli" extract --keep --output "$RUNNER_TEMP/ui/merged-content" "$RUNNER_TEMP/ui/merged-patch-Z.MPQ" > /dev/null
+          cmp "$RUNNER_TEMP/original-coa/CoA/Classes/CustomClass.dat" "$RUNNER_TEMP/ui/merged-content/CoA/Classes/CustomClass.dat"
+          grep -q 'AscensionClassBridge.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeBegin.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
       - name: Publish Windows native UI installer source only
         uses: actions/upload-artifact@v4
         with:
