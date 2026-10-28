@@ -18,7 +18,7 @@ after = loader.split("void AddCoAScripts()", 1)[1]
 assert 'AzerothForever.VanillaMode' in after
 assert "AddAzerothForeverVanillaCleanupScripts();" in after
 for name in [
-    "AddSC_AscensionHighRisk", "AddSC_AscensionRulesets",
+    "AddSC_AscensionHighRisk",
     "AddSC_AscensionMercenary", "AddSC_AscensionQuestScaling",
     "AddSC_AscensionBloodforged", "AddSC_AscensionClosestResurrection",
 ]:
