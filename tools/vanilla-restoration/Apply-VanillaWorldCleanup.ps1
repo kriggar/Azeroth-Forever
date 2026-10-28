@@ -14,7 +14,8 @@ $clientSettings = Join-Path $ServerRoot 'mysql\admin-client.ini'
 $base = Split-Path -Parent $MyInvocation.MyCommand.Path
 $sqlFiles = @(
     (Join-Path $base '001_remove_call_boards.sql'),
-    (Join-Path $base '002_remove_experimental_transporters.sql')
+    (Join-Path $base '002_remove_experimental_transporters.sql'),
+    (Join-Path $base '003_remove_optional_clutter.sql')
 )
 foreach ($path in @($mysql, $dump, $clientSettings) + $sqlFiles) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -71,6 +72,6 @@ foreach ($sqlFile in $sqlFiles) {
         throw "Database cleanup failed: $sqlFile. Restore from $backupFile before continuing."
     }
 }
-Write-Host 'Verified board and experimental teleporter spawn cleanup applied.'
+Write-Host 'Verified optional board, teleporter, and world clutter cleanup applied.'
 Write-Host 'Restart the worldserver before checking the world in-game.'
 Write-Host "Backup retained: $backupFile"
