@@ -52,3 +52,15 @@ Restore verifies the installed archive SHA256. When an original patch-Z existed,
 ## Remaining mandatory integration tasks
 
 Validate modified FrameXML integrity behavior in the specific CoA client, update any 3.3.5 custom-class HUD conflicts, preserve all 21 CoA classes and their custom resources, add settings persistence and exact Forever 2026 look, and finish in-game UI regression testing.
+
+## CoA talents are NOT stock WotLK talents
+
+Azeroth Forever preserves **all 21 Conquest of Azeroth classes**. Their player-facing talent window is `CoATalentFrame`, with **two authentic trees** (Class and Specialization), connected to the existing `C_CharacterAdvancement` client API, pending-build budget, required nodes, respec, specialized class node visuals and Save/Undo. It is not `PlayerTalentFrame` or stock `GetTalentInfo`.
+
+The native packaging step explicitly **does not execute** the upstream port's `Talents.lua`, `TalentsSearch.lua` or `TalentsData.lua`: those are WotLK three-tab controllers and can otherwise generate a duplicate/incorrect panel. Our native `AzerothForeverCoATalents.lua` adds modern Forever-styled background, borders, header dividers, smaller legible text and scales the *existing* CoA talent window to screen. The original CoA node buttons and all their scripts, search box, Save Changes, Undo and specialization selection are preserved in place.
+
+CoA talents remain **client-load-on-demand** through the owner's existing `Ascension_CoATalents` package; this is a dependency of the provided CoA client, **not a new add-on to install**. The presentation changes ship inside the game-client MPQ as FrameXML.
+
+The appearance is still **in-game unverified** until the patched client is launched and class/spec trees are opened. The required goal is parity with WoW: Forever's modern talent-panel appearance while retaining the CoA talent function. Do not claim this is finished just because the native Lua and MPQ tests pass.
+
+The full mandatory client panel list, with per-panel implementation status, is maintained at `tools/forever-native-ui/ui_contract.json`. Unimplemented gamepad/Legacy/Camping/new renderer functionality is tracked explicitly instead of falsely presenting the old client as a 2026 game client.
