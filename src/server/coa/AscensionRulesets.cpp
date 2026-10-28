@@ -137,7 +137,7 @@ class spell_ascension_ruleset_select : public SpellScript
     SpellCastResult CheckCast()
     {
         Player* player = GetCaster()->ToPlayer();
-        if (vanillaOnly.load(std::memory_order_relaxed) && GetSpellInfo()->Id != SPELL_SELECT_PVE)
+        if (vanillaOnly.load(std::memory_order_relaxed))
             return SPELL_FAILED_NOT_HERE;
         return player && player->HasPlayerFlag(PLAYER_FLAGS_RESTING) ? SPELL_CAST_OK : SPELL_FAILED_NOT_HERE;
     }
@@ -210,7 +210,7 @@ public:
             player->RemoveAurasDueToSpell(SPELL_HIGH_RISK);
             player->RemoveAurasDueToSpell(SPELL_WAR_MODE);
             player->RemoveAurasDueToSpell(SPELL_MERCENARY);
-            for (uint32 id : {SPELL_SELECT_WAR_MODE, SPELL_SELECT_HIGH_RISK})
+            for (uint32 id : {SPELL_SELECT_WAR_MODE, SPELL_SELECT_HIGH_RISK, SPELL_SELECT_PVE})
                 player->removeSpell(id, 0xFF, false);
             if (!player->HasAura(SPELL_PVE))
                 player->CastSpell(player, SPELL_PVE, true);
