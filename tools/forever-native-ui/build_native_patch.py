@@ -252,9 +252,29 @@ def merge_existing_patch(mpqcli, existing, payload, output, temp):
         )
 
     original_sha = digest(existing)
-    shutil.copy2(existing, output)
+    max_files = int(run(mpqcli, "info", "--property", "max-files", existing).strip())
+    estimated_needed = len((set(old) | set(new)) - INTERNAL_MEMBERS) + 3
+    repack_required = estimated_needed > max_files
+    # A small existing MPQ hash table cannot accept ~800 new files. In that
+    # case rebuild a VERIFIED union of the fully extractable original files
+    # and native UI files; do not discard a single original decoded member.
+    if repack_required:
+        union = temp / "coa-plus-native"
+        shutil.copytree(original, union)
+        current = files_by_archive_name(union)
+        for name, item in new.items():
+            if name in current:
+                shutil.copy2(item, current[name])
+            else:
+                dest = union / item.relative_to(payload)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(item, dest)
+        run(mpqcli, "create", "--game", "wow-wotlk", "--output", output, union)
+    else:
+        shutil.copy2(existing, output)
     try:
-        run(mpqcli, "add", output, payload, "--overwrite", "--game", "wow-wotlk")
+        if not repack_required:
+            run(mpqcli, "add", output, payload, "--overwrite", "--game", "wow-wotlk")
         verified = temp / "merged-verify"
         run(mpqcli, "extract", "--keep", "--output", verified, output)
         final = files_by_archive_name(verified)
@@ -280,7 +300,9 @@ def merge_existing_patch(mpqcli, existing, payload, output, temp):
             "original_patch_sha256": original_sha,
             "original_members_verified": len(set(old) - INTERNAL_MEMBERS - collisions),
             "ui_collisions_approved": sorted(collisions),
-            "verified_members": len(expected_names)
+            "verified_members": len(expected_names),
+            "existing_archive_repacked": repack_required,
+            "original_archive_capacity": max_files
         }
     except Exception:
         if Path(output).exists():
