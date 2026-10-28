@@ -765,7 +765,9 @@ void AddCoAScripts()
     AddAscensionAccountInfoScripts();
     AddCoAGameplayTestScripts();
     AddSC_AscensionResourceTalents();
-    if (!vanilla) AddSC_AscensionRulesets();
+    // Keep the ruleset hook registered: its vanilla-mode guard removes old
+    // Ascension ruleset selections on login without enabling High Risk.
+    AddSC_AscensionRulesets();
     if (!vanilla) AddSC_AscensionMercenary();
     if (!vanilla) AddSC_AscensionHighRisk();
     if (!vanilla) AddSC_AscensionFelCommutation();
