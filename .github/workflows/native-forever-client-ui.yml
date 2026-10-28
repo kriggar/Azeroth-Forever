@@ -1,0 +1,74 @@
+name: Build and validate native Forever interface (not an addon)
+
+on:
+  push:
+    branches: [feature/vanilla-coa-baseline]
+    paths:
+      - 'tools/forever-native-ui/**'
+      - '.github/workflows/native-forever-client-ui.yml'
+  pull_request:
+    paths:
+      - 'tools/forever-native-ui/**'
+      - '.github/workflows/native-forever-client-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Azeroth Forever native client integration
+        uses: actions/checkout@v4
+      - name: Checkout pinned GPL-2.0 full UI port (no artifacts committed to our repository)
+        uses: actions/checkout@v4
+        with:
+          repository: Adrestie/mod-forever-ui
+          ref: c5149b96a9938ae9073ff8bb1662e42d2b7b5090
+          path: ui-upstream
+      - name: Install Lua 5.1 syntax compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.1
+      - name: Validate native UI loader and class-safe patch builder
+        run: |
+          luac5.1 -p tools/forever-native-ui/client/AzerothForeverNativeBegin.lua
+          luac5.1 -p tools/forever-native-ui/client/AzerothForeverNativeEnd.lua
+          python3 -m unittest discover -s tools/forever-native-ui/tests -p "test_*.py" -v
+      - name: Verify complete upstream full-UI source Lua syntax
+        run: |
+          while IFS= read -r file; do
+            case "$file" in ""|\#*) continue ;; esac
+            luac5.1 -p "ui-upstream/data/addon/ForeverUI/$file"
+          done < ui-upstream/data/addon/ForeverUI/ForeverUI.toc
+      - name: Download and verify open-source MPQ archive CLI
+        run: |
+          curl --fail --location --retry 3 \
+            -o "$RUNNER_TEMP/mpqcli" \
+            https://github.com/thegraydot/mpqcli/releases/download/v0.11.0/mpqcli-linux-amd64-glibc
+          printf '%s  %s\n' \
+            'a2583a938814b7dd32b116daf96376648b476e0399856c85f7013d31938ab9db' \
+            "$RUNNER_TEMP/mpqcli" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/mpqcli"
+          "$RUNNER_TEMP/mpqcli" version
+      - name: Construct a full native MPQ against a representative CoA FrameXML table
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ui"
+          printf 'Bindings.xml\nUIParent.lua\nAscensionClientCompat.lua\n' > "$RUNNER_TEMP/ui/FrameXML.toc"
+          python3 tools/forever-native-ui/build_native_patch.py \
+            --upstream ui-upstream \
+            --toc-file "$RUNNER_TEMP/ui/FrameXML.toc" \
+            --mpqcli "$RUNNER_TEMP/mpqcli" \
+            --output "$RUNNER_TEMP/ui/patch-Z.MPQ"
+          test -s "$RUNNER_TEMP/ui/patch-Z.MPQ"
+          grep -q 'AzerothForeverNative' "$RUNNER_TEMP/ui/patch-Z.MPQ.json"
+      - name: Publish Windows native UI installer source only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Azeroth-Forever-Native-UI-Installer-EXPERIMENTAL
+          path: tools/forever-native-ui/
+          if-no-files-found: error
+          retention-days: 7
