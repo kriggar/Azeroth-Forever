@@ -415,9 +415,14 @@ void AddSC_AscensionVoidPortal();
 
 void AddSC_XPHotspots();
 
+void AddAzerothForeverVanillaCleanupScripts();
+
 void AddCoAScripts()
 {
     bool const vanilla = sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true);
+    // Disable non-CoA Ascension systems; keep class spells/talents, client protocol,
+    // class trainers, quests, map encounters and achievement infrastructure.
+    AddAzerothForeverVanillaCleanupScripts();
     // Only CoA class, trainer, class-quest and map scripts stay active in vanilla mode.
     // Unrelated account rewards, portals, convenience and seasonal subsystems are optional.
     AddAscensionStockCoefficientScripts();
@@ -736,12 +741,12 @@ void AddCoAScripts()
     AddSC_AscensionWildcardCremation();
     AddSC_AscensionWildcardSealOfFervor();
     AddSC_AscensionWildcardElementalBlast();
-    AddAscensionFreepickScripts();
+    if (!vanilla) AddAscensionFreepickScripts();
     AddAscensionHeroBloomingShotScripts();
-    AddAscensionMysticEnchantScripts();
-    AddSC_AscensionMysticEnchantProcs();
-    AddSC_AscensionMysticEnchantScripts();
-    AddAscensionBuildCreatorScripts();
+    if (!vanilla) AddAscensionMysticEnchantScripts();
+    if (!vanilla) AddSC_AscensionMysticEnchantProcs();
+    if (!vanilla) AddSC_AscensionMysticEnchantScripts();
+    if (!vanilla) AddAscensionBuildCreatorScripts();
     AddAscensionWarcraftRebornScripts();
     AddAscensionWarcraftRebornWarriorScripts();
     AddAscensionWarcraftRebornPaladinScripts();
@@ -752,42 +757,42 @@ void AddCoAScripts()
     AddAscensionWarcraftRebornWarlockScripts();
     AddAscensionWarcraftRebornDruidScripts();
     AddAscensionTamingScripts();
-    AddAscensionBarnabusWhistleScripts();
-    AddAscensionPepeVanityScripts();
+    if (!vanilla) AddAscensionBarnabusWhistleScripts();
+    if (!vanilla) AddAscensionPepeVanityScripts();
     AddAscensionRaidMarkerScripts();
     AddCoAContainerTriggerScripts();
     AddAscensionAchievementConditionScripts();
     AddAscensionAccountInfoScripts();
     AddCoAGameplayTestScripts();
     AddSC_AscensionResourceTalents();
-    AddSC_AscensionRulesets();
-    AddSC_AscensionMercenary();
-    AddSC_AscensionHighRisk();
-    AddSC_AscensionFelCommutation();
+    if (!vanilla) AddSC_AscensionRulesets();
+    if (!vanilla) AddSC_AscensionMercenary();
+    if (!vanilla) AddSC_AscensionHighRisk();
+    if (!vanilla) AddSC_AscensionFelCommutation();
     AddSC_AscensionClientHotPatch();
-    AddSC_AscensionCrowsCache();
-    AddSC_CoAProbeRelay();
-    AddSC_AscensionItemScaling();
-    AddSC_AscensionNativeItemScaling();
-    AddSC_AscensionQuestScaling();
-    AddSC_AscensionBloodforged();
-    AddSC_AscensionBloodforging();
-    AddAscensionEquippedGearLootScripts();
-    AddSC_AscensionPvpPower();
-    AddSC_AscensionPowerTooltips();
-    AddSC_AscensionPvePower();
-    AddSC_AscensionItemPower();
-    AddSC_AscensionMountSpeed();
+    if (!vanilla) AddSC_AscensionCrowsCache();
+    if (!vanilla) AddSC_CoAProbeRelay();
+    if (!vanilla) AddSC_AscensionItemScaling();
+    if (!vanilla) AddSC_AscensionNativeItemScaling();
+    if (!vanilla) AddSC_AscensionQuestScaling();
+    if (!vanilla) AddSC_AscensionBloodforged();
+    if (!vanilla) AddSC_AscensionBloodforging();
+    if (!vanilla) AddAscensionEquippedGearLootScripts();
+    if (!vanilla) AddSC_AscensionPvpPower();
+    if (!vanilla) AddSC_AscensionPowerTooltips();
+    if (!vanilla) AddSC_AscensionPvePower();
+    if (!vanilla) AddSC_AscensionItemPower();
+    if (!vanilla) AddSC_AscensionMountSpeed();
     if (!vanilla) AddSC_AscensionGlory();
-    AddSC_AscensionDifficultyRelease();
-    AddSC_AscensionLfgRandomDungeonRequirements();
+    if (!vanilla) AddSC_AscensionDifficultyRelease();
+    if (!vanilla) AddSC_AscensionLfgRandomDungeonRequirements();
     AddSC_AscensionQuestLog();
     if (!vanilla) AddSC_AscensionRestingBuff();
     if (!vanilla) AddSC_AscensionPvpTrinketHealth();
     AddSC_AscensionClosestResurrection();
-    AddSC_AscensionAdventureModeRandomAggro();
-    AddSC_AscensionDungeonRelease();
-    AddSC_AscensionRaidRelease();
+    if (!vanilla) AddSC_AscensionAdventureModeRandomAggro();
+    if (!vanilla) AddSC_AscensionDungeonRelease();
+    if (!vanilla) AddSC_AscensionRaidRelease();
     AddSC_AscensionThreatRedirect();
     AddSC_AscensionTalentDataProcs();
     AddSC_AscensionTreeOfLife();
