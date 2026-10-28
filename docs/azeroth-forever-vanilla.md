@@ -19,6 +19,9 @@ not meant to remove the CoA Ascension-client protocol.
   **MaxPlayerLevel = 60** defines the vanilla leveling cap.
 - Ordinary WoW PvP rules, battlegrounds, flight masters, inns, hearthstones,
   graveyard corpse runs, native resurrection, loot and professions.
+- Normal 1x XP from kills, quests and exploration, 2x classic elite XP, and **no
+  character XP from mining, herbalism or crafting**. Custom CoA progression rates
+  are deliberately not used in the vanilla world.
 
 ## Disabled at the compiled-server level
 
