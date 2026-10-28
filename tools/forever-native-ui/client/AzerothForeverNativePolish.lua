@@ -133,6 +133,38 @@ function AF.FixDuplicateSearches()
     end
 end
 
+function AF.FixDuplicateBagSearch()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local native=_G.ForeverUIBagSearchBox
+    if not native or not native.IsShown or not native:IsShown() then return end
+    local nx,ny=native:GetCenter()
+    if not nx or not ny then return end
+    local other=EnumerateFrames()
+    while other do
+        local nextFrame=EnumerateFrames(other)
+        if other~=native and other.GetObjectType and
+           other:GetObjectType()=="EditBox" and other.IsShown and
+           other:IsShown() and other.GetName then
+            local name=other:GetName()
+            local key=name and string.lower(name)
+            if key and string.find(key,"search",1,true) and
+               (string.find(key,"bag",1,true) or
+                string.find(key,"container",1,true) or
+                string.find(key,"inventory",1,true)) then
+                local x,y=other:GetCenter()
+                if x and y and math.abs(nx-x)<132 and math.abs(ny-y)<61 then
+                    if not AF.searchSuppressed[name] then
+                        other:Hide()
+                        AF.searchSuppressed[name]=other
+                        AF.overlapFixes=AF.overlapFixes+1
+                    end
+                end
+            end
+        end
+        other=nextFrame
+    end
+end
+
 function AF.RestoreLegacySearches()
     for name, frame in pairs(AF.searchSuppressed) do
         if frame then frame:Show() end
@@ -165,6 +197,7 @@ watcher:SetScript("OnUpdate", function(self, elapsed)
     if self.elapsed < 0.8 then return end
     self.elapsed = 0
     AF.FixDuplicateSearches()
+    AF.FixDuplicateBagSearch()
     AF.SuppressAscensionVanity()
 end)
 
