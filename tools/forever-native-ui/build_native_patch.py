@@ -6,7 +6,7 @@ commit. This program packages the in-game interface scripts, as built-in
 FrameXML files, NOT as Interface/AddOns/ForeverUI. CoA login/character creation
 GlueXML is deliberately excluded to preserve its 21 custom classes.
 
-Never patches game executables, server data, existing MPQs or WTF settings.
+Never alters installed game executables, databases, source MPQs or WTF settings.
 Requires mpqcli 0.11.0+ (StormLib) to build/verify an overlay.
 """
 import argparse
@@ -159,6 +159,126 @@ def compare_inventory(expected, extracted):
         raise RuntimeError("Unexpected MPQ members: " + ", ".join(extra[:10]))
     return len(names)
 
+
+def normalize_archive_name(name):
+    return name.replace("\\", "/").strip().lower()
+
+
+def files_by_archive_name(directory):
+    """Map each extracted member to a lowercased MPQ path for safe comparison."""
+    result = {}
+    for file in Path(directory).rglob("*"):
+        if not file.is_file():
+            continue
+        name = normalize_archive_name(file.relative_to(directory).as_posix())
+        if name in result:
+            raise ValueError("Case-colliding archive paths: " + name)
+        result[name] = file
+    return result
+
+
+INTERNAL_MEMBERS = {"(listfile)", "(attributes)", "(signature)"}
+
+
+def known_archive_names(mpqcli, archive):
+    """Refuse to alter a patch whose contents cannot be fully inventoried."""
+    output = run(mpqcli, "list", "-a", archive)
+    names = [normalize_archive_name(line) for line in output.splitlines() if line.strip()]
+    if len(names) != len(set(names)):
+        raise ValueError("MPQ contains duplicate/locale-specific paths; cannot safely merge")
+    try:
+        declared_count = int(run(mpqcli, "info", "--property", "file-count", archive).strip())
+    except ValueError as error:
+        raise ValueError("Cannot determine existing MPQ file count") from error
+    if len(names) != declared_count:
+        raise ValueError(
+            "Existing MPQ has unlisted members ({} listed, {} declared); "
+            "refusing a potentially destructive merge".format(len(names), declared_count)
+        )
+    return set(names)
+
+
+def merge_existing_patch(mpqcli, existing, payload, output, temp):
+    """Copy a pre-existing CoA patch-Z, change the TOC, and add only native UI files.
+
+    Existing content never changes unless it is the single explicit
+    Interface/FrameXML/FrameXML.toc update, which retains its original lines.
+    Validate every original and newly added extracted file by SHA-256.
+    """
+    if Path(existing).resolve() == Path(output).resolve():
+        raise ValueError("Must not modify the installed original MPQ in place")
+    if not Path(existing).is_file():
+        raise ValueError("Existing MPQ is missing: " + str(existing))
+
+    signature = run(mpqcli, "info", "--property", "signature-type", existing).strip().lower()
+    if signature not in {"none", "no signature", "unsigned"}:
+        raise ValueError(
+            "Existing patch has an MPQ signature ({}) that merging would invalidate. "
+            "The source patch is unchanged; use a separate compatible client patch.".format(signature)
+        )
+
+    old_names = known_archive_names(mpqcli, existing)
+    original = temp / "original"
+    run(mpqcli, "extract", "--keep", "--output", original, existing)
+    old = files_by_archive_name(original)
+    # Internal names may not be extractable; normal members must match *all* listed paths.
+    normal_names = old_names - INTERNAL_MEMBERS
+    if set(old) - INTERNAL_MEMBERS != normal_names:
+        missing = normal_names - set(old)
+        extra = (set(old) - INTERNAL_MEMBERS) - normal_names
+        raise ValueError(
+            "Existing CoA MPQ couldn't be fully verified (missing: {}, extra: {}). "
+            "No client files changed".format(list(sorted(missing))[:5], list(sorted(extra))[:5])
+        )
+
+    new = files_by_archive_name(payload)
+    collisions = set(old) & set(new)
+    approved = {normalize_archive_name(TOC_MEMBER)}
+    if collisions - approved:
+        raise ValueError(
+            "Native UI collides with CoA patch files: {}. "
+            "Refusing to overwrite any CoA asset other than FrameXML.toc".format(
+                ", ".join(sorted(collisions - approved)[:12])
+            )
+        )
+
+    original_sha = digest(existing)
+    shutil.copy2(existing, output)
+    try:
+        run(mpqcli, "add", output, payload, "--overwrite", "--game", "wow-wotlk")
+        verified = temp / "merged-verify"
+        run(mpqcli, "extract", "--keep", "--output", verified, output)
+        final = files_by_archive_name(verified)
+
+        expected_names = (set(old) | set(new)) - INTERNAL_MEMBERS
+        if set(final) - INTERNAL_MEMBERS != expected_names:
+            missing = expected_names - set(final)
+            unexpected = (set(final) - INTERNAL_MEMBERS) - expected_names
+            raise RuntimeError(
+                "Merged archive inventory differs (missing: {}, unexpected: {})".format(
+                    list(sorted(missing))[:8], list(sorted(unexpected))[:8])
+            )
+
+        for name in expected_names:
+            wanted = new[name] if name in new else old[name]
+            if digest(final[name]) != digest(wanted):
+                raise RuntimeError("CoA MPQ entry was corrupted/overwritten: " + name)
+
+        if digest(existing) != original_sha:
+            raise RuntimeError("The original CoA patch changed during build; aborting")
+        return {
+            "merged_existing_patch": True,
+            "original_patch_sha256": original_sha,
+            "original_members_verified": len(set(old) - INTERNAL_MEMBERS - collisions),
+            "ui_collisions_approved": sorted(collisions),
+            "verified_members": len(expected_names)
+        }
+    except Exception:
+        if Path(output).exists():
+            Path(output).unlink()
+        raise
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--upstream", type=Path, required=True,
@@ -170,6 +290,8 @@ def main():
                    help="Already extracted FrameXML.toc; useful for dry-run tests")
     p.add_argument("--mpqcli", type=Path, help="Pinned mpqcli executable")
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--merge-archive", type=Path,
+                   help="Existing client patch-Z.MPQ: copy, add native UI, verify original files")
     p.add_argument("--staging-only", action="store_true",
                    help="Prepare inspectable native files, do not create an MPQ")
     args = p.parse_args()
@@ -183,21 +305,36 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="af-native-") as work:
         temp = Path(work)
-        toc = (args.toc_file.read_bytes() if args.toc_file else
-               extract_toc(args.mpqcli, args.toc_archive, temp / "toc"))
+        if args.merge_archive:
+            # The highest-priority current patch may itself override FrameXML.toc.
+            # Use its version so CoA custom client loader entries are retained.
+            existing_names = known_archive_names(args.mpqcli, args.merge_archive)
+            if normalize_archive_name(TOC_MEMBER) in existing_names:
+                toc = extract_toc(args.mpqcli, args.merge_archive, temp / "toc-current")
+            else:
+                toc = (args.toc_file.read_bytes() if args.toc_file else
+                       extract_toc(args.mpqcli, args.toc_archive, temp / "toc"))
+        else:
+            toc = (args.toc_file.read_bytes() if args.toc_file else
+                   extract_toc(args.mpqcli, args.toc_archive, temp / "toc"))
         payload = temp / "payload"
         report = stage(args.upstream, toc, payload)
         if args.staging_only:
             shutil.copytree(payload, args.output)
             report["mode"] = "staging-only; no client changes"
         else:
-            run(args.mpqcli, "create", "--game", "wow-wotlk",
-                "--output", args.output, payload)
-            verify = temp / "verify"
-            run(args.mpqcli, "extract", "--keep", "--output", verify, args.output)
-            report["verified_members"] = compare_inventory(payload, verify)
+            if args.merge_archive:
+                report.update(merge_existing_patch(
+                    args.mpqcli, args.merge_archive, payload, args.output, temp))
+                report["mode"] = "merged and every original MPQ file verified; not installed"
+            else:
+                run(args.mpqcli, "create", "--game", "wow-wotlk",
+                    "--output", args.output, payload)
+                verify = temp / "verify"
+                run(args.mpqcli, "extract", "--keep", "--output", verify, args.output)
+                report["verified_members"] = compare_inventory(payload, verify)
+                report["mode"] = "built and readback-verified; not installed"
             report["output_sha256"] = digest(args.output)
-            report["mode"] = "built and readback-verified; not installed"
         (args.output.parent / (args.output.name + ".json")).write_text(
             json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report, indent=2))
