@@ -218,11 +218,11 @@ jobs:
           & $cli extract --keep --output $upgradedExtracted (Join-Path $data 'patch-Z.MPQ') | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Upgraded archive cannot be extracted' }
           $upgradedToc = Get-Content (Join-Path $upgradedExtracted 'Interface\FrameXML\FrameXML.toc') -Raw
-          if ([regex]::Matches($upgradedToc, 'AzerothForeverCoASpecPicker\.lua').Count -ne 1) {
+          if ([regex]::Matches($upgradedToc, 'AzerothForeverCoATreeHome\.lua').Count -ne 1) {
             throw 'Updated direct CoA talent tree view is absent or duplicated in FrameXML.toc'
           }
           if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverCoATreeHome.lua'))) {
-            throw 'Spec picker script did not make it into the upgraded client archive'
+            throw 'Direct CoA talent trees script did not make it into the upgraded client archive'
           }
           if ((Get-Content (Join-Path $upgradedExtracted 'CoA\Classes\CustomClass.dat') -Raw) -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
             throw 'Upgrading damaged the original CoA class content'
