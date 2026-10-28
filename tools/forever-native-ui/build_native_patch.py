@@ -29,11 +29,18 @@ NATIVE_POST_FILES = (
     "AzerothForeverNativePolish.lua",
     "AzerothForeverNativeSettings.lua",
     "AzerothForeverNativeTransmog.lua",
+    "AzerothForeverCoATalentVisuals.lua",
     "AzerothForeverCoATalents.lua",
     "AzerothForeverCoATreeHome.lua",
+    "AzerothForeverNativeMicroMenu.lua",
     "AzerothForeverNativeGameMenu.lua",
-    "AzerothForeverNativeOnboarding.lua",
 )
+
+# The prototype first-login sequence runs in FrameXML *after* character
+# creation and cannot create characters or enforce realm rulesets. Never ship
+# it as if it were WoW Forever's real GlueXML onboarding. Actual first-login
+# workflow requires an explicitly developed and tested login-screen patch.
+UNSHIPPED_PROTOTYPES = ("AzerothForeverNativeOnboarding.lua",)
 
 # Azeroth Forever is a 21-class CoA realm. Upstream Talents.lua is a visually
 # faithful 3.3.5 WotLK *three-tree* talent UI, but it calls GetTalentInfo(),
