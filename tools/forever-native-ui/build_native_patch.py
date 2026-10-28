@@ -92,17 +92,21 @@ def run(exe, *args):
     return proc.stdout
 
 def extract_toc(mpqcli, archive, directory):
-    """Read raw FrameXML.toc bytes directly; mpqcli 0.11 extract is all-only."""
-    member = TOC_MEMBER.replace("/", "\\")
-    proc = subprocess.run([str(mpqcli), "read", str(archive), member],
-                          capture_output=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            "Cannot read effective FrameXML.toc from {}: {}".format(
-                archive, proc.stderr.decode("utf-8", "replace")[-1200:]))
-    if not proc.stdout or b"UIParent.lua" not in proc.stdout:
+    """Read exact client FrameXML.toc via a full extraction.
+
+    v0.11 cannot reliably address a named member when extracting/reading an MPQ
+    with Windows-style archive paths on Linux. Full extraction is slower but
+    allows a direct byte-level check without dropping CoA loader entries.
+    """
+    run(mpqcli, "extract", "--keep", "--output", directory, archive)
+    paths = files_by_archive_name(directory)
+    toc = paths.get(normalize_archive_name(TOC_MEMBER))
+    if not toc:
+        raise RuntimeError("Effective FrameXML.toc is absent in archive: " + str(archive))
+    content = toc.read_bytes()
+    if b"UIParent.lua" not in content:
         raise ValueError("Unrecognized CoA FrameXML.toc from " + str(archive))
-    return proc.stdout
+    return content
 
 
 def stage(upstream, baseline_toc, staging):
