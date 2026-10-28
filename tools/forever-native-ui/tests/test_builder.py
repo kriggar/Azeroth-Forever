@@ -22,6 +22,30 @@ class FrameXMLTests(unittest.TestCase):
         self.assertIn(b"AzerothForeverNative\\UIAtlas.lua\r\n", new)
         self.assertNotIn(b"Interface\\AddOns", new)
 
+    def test_stock_335_loader_uses_uiparent_xml(self):
+        # Actual WoW 3.3.5 FrameXML.toc uses UIParent.xml, whose own XML
+        # imports UIParent.lua. This previously broke the user's patch-B.MPQ.
+        old = (b"## Interface: 30300\r\nGlobalStrings.lua\r\nWorldFrame.xml\r\n"
+               b"UIParent.xml\r\nMainMenuBar.xml\r\nAscensionClassBridge.lua\r\n")
+        self.assertEqual(native.validate_framexml_toc(old), old.decode("utf-8"))
+        patched = native.extend_framexml(old, [
+            "AzerothForeverNativeBegin.lua",
+            "AzerothForeverNative/UIAtlas.lua",
+            "AzerothForeverNativeEnd.lua"
+        ])
+        self.assertTrue(patched.startswith(old))
+        self.assertIn(b"UIParent.xml\r\n", patched)
+        self.assertIn(b"AscensionClassBridge.lua\r\n", patched)
+        self.assertIn(b"AzerothForeverNative\\UIAtlas.lua\r\n", patched)
+
+    def test_standard_loader_comments_do_not_count(self):
+        with self.assertRaisesRegex(ValueError, "Unrecognized"):
+            native.validate_framexml_toc(b"# UIParent.xml\nSomeFile.xml\n")
+
+    def test_coa_extended_loader_paths_are_recognized(self):
+        toc = b"Interface\\FrameXML\\UIParent.xml\nAscensionClassBridge.lua\n"
+        self.assertEqual(native.validate_framexml_toc(toc), toc.decode())
+
     def test_refuse_unknown_client_loader(self):
         with self.assertRaisesRegex(ValueError, "Unrecognized"):
             native.extend_framexml(b"SomeOtherUI.lua\n", ["Foo.lua"])
