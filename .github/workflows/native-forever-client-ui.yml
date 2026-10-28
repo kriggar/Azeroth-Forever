@@ -15,6 +15,12 @@ on:
 permissions:
   contents: read
 
+# Installing two successive UI revisions on test clients is expensive. Keep
+# only the latest commit for a branch; prior unneeded runs are cancelled.
+concurrency:
+  group: native-forever-ui-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native-ui:
     runs-on: ubuntu-24.04
