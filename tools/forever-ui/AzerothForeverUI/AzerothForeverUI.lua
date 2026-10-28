@@ -160,12 +160,70 @@ local function CreateMenuButton(parent, item, index)
     return button
 end
 
+-- Reposition only native frames, without replacing CoA-specific resource bars.
+-- Fully reversible. We do not touch the client spellbook, class action buttons,
+-- spell/achievement data or the underlying secure action templates.
+local originalFramePoints = {}
+local originalCapVisibility = {}
+local function RecordPoints(frame)
+    if originalFramePoints[frame] then return end
+    local points = {}
+    for i=1, frame:GetNumPoints() do
+        points[i] = { frame:GetPoint(i) }
+    end
+    originalFramePoints[frame] = points
+end
+
+local function RestorePoints(frame)
+    local points = originalFramePoints[frame]
+    if not points then return end
+    frame:ClearAllPoints()
+    for _, args in ipairs(points) do
+        frame:SetPoint(unpack(args))
+    end
+end
+
+local function UpdateForeverLayout()
+    if not settings or (InCombatLockdown and InCombatLockdown()) then return end
+    local modern = settings.enabled and settings.layout ~= "original"
+
+    for _, spec in ipairs({
+        { frame = PlayerFrame, x = -340, y = 165 },
+        { frame = TargetFrame, x = 115, y = 165 }
+    }) do
+        local frame = spec.frame
+        if frame then
+            RecordPoints(frame)
+            if modern then
+                frame:ClearAllPoints()
+                frame:SetPoint("BOTTOM", UIParent, "BOTTOM", spec.x, spec.y)
+            else
+                RestorePoints(frame)
+            end
+        end
+    end
+
+    for _, name in ipairs({ "MainMenuBarLeftEndCap", "MainMenuBarRightEndCap" }) do
+        local art = _G[name]
+        if art then
+            if originalCapVisibility[name] == nil then
+                originalCapVisibility[name] = art:IsShown()
+            end
+            if modern then
+                art:Hide()
+            elseif originalCapVisibility[name] then
+                art:Show()
+            end
+        end
+    end
+end
+
 local function BuildUI()
     if systemBar then return end
     systemBar = CreateFrame("Frame", "AzerothForeverSystemBar", UIParent)
     systemBar:SetWidth(#menuItems * 37 + 18)
     systemBar:SetHeight(49)
-    systemBar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -22, 8)
+    systemBar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -22, 58)
     systemBar:SetFrameStrata("HIGH")
     systemBar:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -184,29 +242,35 @@ local function BuildUI()
 
     -- Retain the native action bars and CoA class-specific action mechanisms.
     UpdateNativeUI()
+    UpdateForeverLayout()
 end
 
 SLASH_AZEROTHFOREVERUI1 = "/afui"
 SlashCmdList["AZEROTHFOREVERUI"] = function(message)
     message = string.lower(message or "")
-    if message == "off" then
+    if message == "layout modern" then
+        settings.layout = "forever"
+    elseif message == "layout original" then
+        settings.layout = "original"
+    elseif message == "off" then
         settings.enabled = false
     elseif message == "on" then
         settings.enabled = true
     elseif message == "toggle" then
         settings.enabled = not settings.enabled
     elseif message == "reset" then
-        AzerothForeverUISettings = { enabled = true }
+        AzerothForeverUISettings = { enabled = true, layout = "forever" }
         settings = AzerothForeverUISettings
     elseif message == "achievements" then
         Achievements()
         return
     else
-        Say("Commands: /afui on, /afui off, /afui toggle, /afui achievements, /afui reset")
+        Say("Commands: /afui on, off, toggle, layout modern, layout original, achievements, reset")
         return
     end
     UpdateNativeUI()
-    Say(settings.enabled and "Forever-style system bar enabled." or "Native system menu restored.")
+    UpdateForeverLayout()
+    Say(settings.enabled and "Forever-style interface enabled." or "Native UI restored.")
 end
 
 local eventFrame = CreateFrame("Frame")
@@ -218,9 +282,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         AzerothForeverUISettings = AzerothForeverUISettings or {}
         settings = AzerothForeverUISettings
         if settings.enabled == nil then settings.enabled = true end
+        if settings.layout == nil then settings.layout = "forever" end
     elseif event == "PLAYER_LOGIN" then
         if not settings then
-            AzerothForeverUISettings = AzerothForeverUISettings or { enabled = true }
+            AzerothForeverUISettings = AzerothForeverUISettings or { enabled = true, layout = "forever" }
             settings = AzerothForeverUISettings
         end
         BuildUI()
@@ -233,5 +298,6 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         end
     elseif event == "PLAYER_REGEN_ENABLED" then
         UpdateNativeUI()
+        UpdateForeverLayout()
     end
 end)
