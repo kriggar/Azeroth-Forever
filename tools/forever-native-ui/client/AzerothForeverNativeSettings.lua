@@ -22,7 +22,6 @@ end
 local function clear()
     for _, widget in ipairs(controls) do
         widget:Hide()
-        widget:SetParent(nil)
     end
     controls = {}
 end
