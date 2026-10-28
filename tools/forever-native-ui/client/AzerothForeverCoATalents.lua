@@ -71,6 +71,10 @@ function R.Style()
     local view = panel.TreeView
     local bar = view.BottomBar
 
+    if type(_G.PortraitFrame_SetTitle) == "function" then
+        pcall(PortraitFrame_SetTitle, panel, _G.TALENTS or "Talents")
+    end
+
     -- Original CoA node widgets, spec IDs, levels, currencies, save/cancel
     -- handlers and prerequisite lines remain in the original tree frames.
     panel.afForeverTalentStyled = true
@@ -102,6 +106,18 @@ function R.Style()
     if not modernAtlas(separator, "talents-divider-vertical-c60") then
         separator:SetTexture("Interface\\Buttons\\WHITE8X8")
         separator:SetVertexColor(0.52, 0.43, 0.24, 0.8)
+    end
+
+    -- Modern Forever talent-tree header ornaments; use the original port's
+    -- 2026-themed assets rather than drawing another unrelated gothic bar.
+    for i, name in ipairs({ "talents-divider-left-c60",
+                            "talents-divider-right-c60" }) do
+        local topLine = view:CreateTexture(nil, "BORDER")
+        topLine:SetWidth(570)
+        topLine:SetHeight(44)
+        topLine:SetPoint("TOP", view, "TOP",
+              i == 1 and -303 or 303, -30)
+        modernAtlas(topLine, name)
     end
 
     local border = CreateFrame("Frame", "AzerothForeverCoATalentsBorder", view)
