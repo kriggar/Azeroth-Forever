@@ -25,6 +25,11 @@ NATIVE_FOLDER = "Interface/FrameXML/AzerothForeverNative"
 SOURCE_FOLDER = "data/addon/ForeverUI"
 ROOT = Path(__file__).resolve().parent
 BOOT_FILES = ("AzerothForeverNativeBegin.lua", "AzerothForeverNativeEnd.lua")
+NATIVE_POST_FILES = (
+    "AzerothForeverNativePolish.lua",
+    "AzerothForeverNativeSettings.lua",
+    "AzerothForeverNativeTransmog.lua",
+)
 UPSTREAM_UI_FILES = ("UIAtlas.lua", "PlayerFrame.lua", "ActionBar.lua",
                      "BottomBar.lua", "QuestLog.lua", "Achievements.lua",
                      "CharacterFrame.lua", "SpellBook.lua", "Talents.lua")
@@ -150,7 +155,7 @@ def stage(upstream, baseline_toc, staging):
     native.mkdir(parents=True, exist_ok=True)
     for f in files:
         shutil.copy2(source / f, native / f)
-    for name in BOOT_FILES:
+    for name in BOOT_FILES + NATIVE_POST_FILES:
         shutil.copy2(ROOT / "client" / name, framexml / name)
 
     art = upstream / "data" / "art" / "interface"
@@ -170,6 +175,9 @@ def stage(upstream, baseline_toc, staging):
     entries = [BOOT_FILES[0]]
     entries += [("AzerothForeverNative/" + str(f).replace("/", "\\")) for f in files]
     entries += [BOOT_FILES[1]]
+    # After the complete upstream interface initializes, load our integrated
+    # client-native polish, settings and NPC-driven transmog controls.
+    entries += list(NATIVE_POST_FILES)
     (framexml / "FrameXML.toc").write_bytes(extend_framexml(baseline_toc, entries))
     return {
         "ui_modules": len(files),
