@@ -61,6 +61,30 @@ local function overlaps(a, b)
     return aArea > 0 and bArea > 0 and area >= math.min(aArea,bArea) * 0.28
 end
 
+-- Only the separate Ascension vanity wardrobe / microbuttons are hidden.
+-- The native/transmog appearance collection and class form visuals stay.
+local VANITY_NAMES = {
+    "AscensionVanityFrame", "VanityCollectionFrame", "AscensionVanityCollection",
+    "AscensionCosmeticsFrame", "PepeVanityFrame", "VanityMicroButton",
+    "AscensionVanityMicroButton"
+}
+local hiddenVanity = {}
+function AF.SuppressAscensionVanity()
+    for _,name in ipairs(VANITY_NAMES) do
+        local frame=_G[name]
+        if frame and not hiddenVanity[name] then
+            hiddenVanity[name]=true
+            frame:Hide()
+            if frame.HookScript then
+                frame:HookScript("OnShow", function(self)
+                    if self:IsShown() then self:Hide() end
+                end)
+            end
+        end
+    end
+end
+
+
 local names = {
     spell = "ForeverUISpellBookSearchBox",
     talent = "ForeverUITalentsSearchBox",
@@ -87,12 +111,18 @@ function AF.FixDuplicateSearches()
                 local nextFrame = EnumerateFrames(frame)
                 if frame ~= modern and frame.GetObjectType and
                     frame:GetObjectType() == "EditBox" and
-                    groupOf(frame:GetName()) == group and overlaps(frame, modern) then
+                    groupOf(frame:GetName()) == group then
                     local n = frame:GetName()
-                    if not AF.searchSuppressed[n] then
-                        -- Hide, but do not unregister events or destroy the
-                        -- custom input. Restore on /afui searchrestore.
+                    if n and not AF.searchSuppressed[n] then
+                        -- The same parent screen already has the ForeverUI
+                        -- search box; any second spell/talent input is
+                        -- redundant even when its border is offset.
                         frame:Hide()
+                        local p = frame:GetParent()
+                        if p and p.GetName and p:GetName() and
+                            string.find(string.lower(p:GetName()),"search",1,true) then
+                            p:Hide()
+                        end
                         AF.searchSuppressed[n] = frame
                         AF.overlapFixes = AF.overlapFixes + 1
                     end
@@ -135,6 +165,7 @@ watcher:SetScript("OnUpdate", function(self, elapsed)
     if self.elapsed < 0.8 then return end
     self.elapsed = 0
     AF.FixDuplicateSearches()
+    AF.SuppressAscensionVanity()
 end)
 
 SLASH_AZEROTHFOREVERNATIVE1 = "/afui"
