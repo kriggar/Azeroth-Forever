@@ -30,7 +30,8 @@ NATIVE_POST_FILES = (
     "AzerothForeverNativeSettings.lua",
     "AzerothForeverNativeTransmog.lua",
     "AzerothForeverCoATalents.lua",
-    "AzerothForeverCoASpecPicker.lua",
+    "AzerothForeverCoATreeHome.lua",
+    "AzerothForeverNativeGameMenu.lua",
 )
 
 # Azeroth Forever is a 21-class CoA realm. Upstream Talents.lua is a visually
