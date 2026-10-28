@@ -1,362 +1,230 @@
--- Azeroth Forever | native modern Talent panel for Conquest of Azeroth.
--- Loaded by the CLIENT FrameXML patch (never from Interface/AddOns).
--- IMPORTANT: CoA classes use CoATalentFrame and C_CharacterAdvancement,
--- not the normal WotLK three-tab PlayerTalentFrame + GetTalentInfo system.
--- ONLY skin original CoA controls. Their scripts, event registrations,
--- class/spec tree data, pending talent decisions and server opcodes are sacred.
+-- Azeroth Forever: native layout adapter for actual CoA talent trees.
+-- CoATalentFrame, C_CharacterAdvancement, the original node renderers and
+-- dependency graph remain authoritative; this file only alters presentation.
+-- The upstream three-tree WotLK Talent UI cannot run here: all 21 CoA classes
+-- have one Class + one Specialization tree in the customized 3.3.5 client.
 
-local AF = AzerothForeverNative or {}
-AzerothForeverNative = AF
-AF.CoATalents = AF.CoATalents or {}
-local R = AF.CoATalents
+local AF = _G.AzerothForeverNative or {}
+_G.AzerothForeverNative = AF
+local R = {}
+AF.CoATalents = R
+R.version=5
+R.lastError=nil
 
-local function inCoA()
-    return type(IsCustomClass) == "function" and IsCustomClass()
+local function isCoA()
+    return type(IsCustomClass)=="function" and IsCustomClass()
+end
+local function fail(text)
+    R.lastError=text
+    if AF.Notice then AF.Notice("CoA talents: "..tostring(text)) end
 end
 
-local function uiError(msg)
-    if type(AF.Notice) == "function" then AF.Notice("CoA Talents: " .. msg) end
-end
-
-local function modernAtlas(tex, name)
-    if not tex then return false end
-    local F = _G.ForeverUI
-    if not F or type(F.AtlasEntry) ~= "function" then return false end
-    local e = F.AtlasEntry(name)
-    if not e then return false end
-    tex:SetTexture(e[1])
-    tex:SetTexCoord(e[2], e[3], e[4], e[5])
-    return true
-end
-
-local function setStone(parent, x)
-    local t = parent:CreateTexture(nil, "BACKGROUND")
-    t:SetWidth(637)
-    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, 0)
-    t:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", x, 0)
-    if not modernAtlas(t, "talents-background-c60") then
-        t:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Background")
-    end
-    t:SetAlpha(0.95)
-    return t
-end
-
-local function resetTextStyle(fs, font, r, g, b)
-    if not fs then return end
-    fs:SetFontObject(font or GameFontNormalLarge)
-    if r then fs:SetTextColor(r, g, b) end
-end
-
--- Check the full class/spec control chain before doing any work. Never take
--- ownership of the actual CoA OnClick, OnEvent, NodeMap, Save or Undo handlers.
 function R.HasOriginalHandlers(root)
     if not root or not root.TreeView or not root.SpecView then return false end
-    local tree = root.TreeView
-    local bottom = tree.BottomBar
-    if not bottom or not tree.ClassTree or not tree.SpecTree then return false end
-    if not bottom.SaveChanges or not bottom.UndoButton or
-       not bottom.ChangeSpec or not bottom.Search then return false end
-    if not _G.C_CharacterAdvancement then return false end
-    if type(C_CharacterAdvancement.GetActiveChrSpec) ~= "function" or
-       type(C_CharacterAdvancement.CanApplyPendingBuild) ~= "function" then return false end
+    local view=root.TreeView
+    local bar=view.BottomBar
+    if not view.ClassTree or not view.SpecTree or not bar then return false end
+    if not bar.SaveChanges or not bar.UndoButton or
+       not bar.ChangeSpec or not bar.Search then return false end
+    local api=_G.C_CharacterAdvancement
+    if not api or type(api.GetActiveChrSpec)~="function" or
+       type(api.CanApplyPendingBuild)~="function" then return false end
     return true
+end
+
+local function textStyle(tree,shift)
+    local label=tree and tree.Label
+    local points=tree and tree.Points
+    if label then
+        label:SetAlpha(1)
+        label:SetFontObject(GameFontNormalLarge)
+        label:SetTextColor(1,.85,.53)
+        label:ClearAllPoints()
+        label:SetPoint("BOTTOM",tree,"TOP",0,60)
+    end
+    if points then
+        points:SetAlpha(1)
+        points:SetFontObject(GameFontHighlightSmall)
+        points:SetTextColor(.88,.74,.37)
+        points:ClearAllPoints()
+        points:SetPoint("TOP",label or tree, "BOTTOM",0,-4)
+    end
+end
+
+local function headerLine(view,x)
+    local line=view:CreateTexture(nil,"OVERLAY")
+    line:SetTexture("Interface\\Buttons\\WHITE8X8")
+    line:SetVertexColor(.6,.5,.32,.75)
+    line:SetPoint("TOP",view,"TOP",x,-76)
+    line:SetWidth(475)
+    line:SetHeight(1)
+    return line
+end
+
+local function layoutBottomBar(view)
+    local bar=view.BottomBar
+    if bar.afForeverLaidOut then return end
+    bar.afForeverLaidOut=true
+    -- Modern Forever tree: Save/Undo to the right, Reset at left,
+    -- spec picker near left, and a SINGLE native CoA Search input.
+    local background=bar:CreateTexture(nil,"BACKGROUND")
+    background:SetTexture("Interface\\Buttons\\WHITE8X8")
+    background:SetAllPoints(bar)
+    background:SetVertexColor(.021,.028,.038,.96)
+    local line=bar:CreateTexture(nil,"OVERLAY")
+    line:SetTexture("Interface\\Buttons\\WHITE8X8")
+    line:SetVertexColor(.48,.42,.31,.8)
+    line:SetPoint("TOPLEFT",bar,"TOPLEFT",0,0)
+    line:SetPoint("TOPRIGHT",bar,"TOPRIGHT",0,0)
+    line:SetHeight(1)
+    if bar.Texture then bar.Texture:SetAlpha(.08) end
+
+    local save=bar.SaveChanges
+    save:SetWidth(170)
+    save:SetHeight(29)
+    save:ClearAllPoints()
+    save:SetPoint("RIGHT",bar,"RIGHT",-23,-6)
+    bar.UndoButton:ClearAllPoints()
+    bar.UndoButton:SetPoint("RIGHT",save,"LEFT",-10,0)
+    bar.ResetButton:ClearAllPoints()
+    bar.ResetButton:SetPoint("LEFT",bar,"LEFT",20,-6)
+    bar.ChangeSpec:SetWidth(159)
+    bar.ChangeSpec:SetHeight(27)
+    bar.ChangeSpec:ClearAllPoints()
+    bar.ChangeSpec:SetPoint("RIGHT",bar.UndoButton,"LEFT",-14,0)
+
+    local search=bar.Search
+    search:SetWidth(200)
+    search:SetHeight(22)
+    search:ClearAllPoints()
+    search:SetPoint("RIGHT",bar.ChangeSpec,"LEFT",-22,0)
+
+    if bar.SpecDropDown then
+        bar.SpecDropDown:ClearAllPoints()
+        bar.SpecDropDown:SetPoint("LEFT",bar.ResetButton,"RIGHT",20,0)
+    end
+    -- Hero Architect / web-link widgets are not part of the Forever tree
+    -- footer. Keep their original scripts in place for CoA compatibility,
+    -- but do not leave their banners overlapping the actual talent controls.
+    for _,name in ipairs({"BuildDropDown","ShareBuildButton","ImportBuildButton"}) do
+        local widget=bar[name]
+        if widget then widget:Hide() end
+    end
 end
 
 function R.Style()
-    if not inCoA() then return false end
-    local panel = _G.CoATalentFrame
-    if not R.HasOriginalHandlers(panel) then return false end
-    if panel.afForeverTalentStyled then return true end
-
-    local view = panel.TreeView
-    local bar = view.BottomBar
-
-    if type(_G.PortraitFrame_SetTitle) == "function" then
-        pcall(PortraitFrame_SetTitle, panel, _G.TALENTS or "Talents")
+    if not isCoA() then return false end
+    local root=_G.CoATalentFrame
+    if not R.HasOriginalHandlers(root) then return false end
+    local view=root.TreeView
+    if view.afForeverTreeStyled then
+        local visual=AF.CoATreeVisuals
+        if visual and visual.Apply then pcall(visual.Apply) end
+        return true
     end
+    view.afForeverTreeStyled=true
 
-    -- Original CoA node widgets, spec IDs, levels, currencies, save/cancel
-    -- handlers and prerequisite lines remain in the original tree frames.
-    panel.afForeverTalentStyled = true
+    -- Preserve original clickable tree, node coordinates, branch connectors,
+    -- rank counts, gameplay search, pending build state and skill costs.
+    textStyle(view.ClassTree,-1)
+    textStyle(view.SpecTree,1)
+    headerLine(view,-307)
+    headerLine(view,307)
+    layoutBottomBar(view)
 
-    -- Two modern art columns (CoA Class + Spec), not Blizzard's three
-    -- WotLK/Forever class spec columns. The data comes from existing CoA.
-    local art = CreateFrame("Frame", "AzerothForeverCoATalentsArt", view)
-    art:SetAllPoints(view)
-    art:SetFrameLevel(math.max(0, view:GetFrameLevel() - 1))
-    art:EnableMouse(false)
-    setStone(art, 0)
-    setStone(art, 637)
-    R.art = art
-
-    -- The CoA client's old opaque art is reduced to a faint class-specific
-    -- tint. The actual nodes, mouse targets and connections stay untouched.
-    for _, key in ipairs({ "Background1", "Background2", "Background3" }) do
-        local layer = view[key]
-        if layer and layer.SetAlpha then
-            layer:SetAlpha(key == "Background1" and 0.1 or 0.025)
-        end
-    end
-
-    -- Forever talent frame border art from the already-packaged GPL port.
-    local separator = view:CreateTexture(nil, "BORDER")
-    separator:SetWidth(14)
-    separator:SetPoint("TOP", view, "TOP", 0, -45)
-    separator:SetPoint("BOTTOM", view, "BOTTOM", 0, 65)
-    if not modernAtlas(separator, "talents-divider-vertical-c60") then
-        separator:SetTexture("Interface\\Buttons\\WHITE8X8")
-        separator:SetVertexColor(0.52, 0.43, 0.24, 0.8)
-    end
-
-    -- Modern Forever talent-tree header ornaments; use the original port's
-    -- 2026-themed assets rather than drawing another unrelated gothic bar.
-    for i, name in ipairs({ "talents-divider-left-c60",
-                            "talents-divider-right-c60" }) do
-        local topLine = view:CreateTexture(nil, "BORDER")
-        topLine:SetWidth(570)
-        topLine:SetHeight(44)
-        topLine:SetPoint("TOP", view, "TOP",
-              i == 1 and -303 or 303, -30)
-        modernAtlas(topLine, name)
-    end
-
-    local border = CreateFrame("Frame", "AzerothForeverCoATalentsBorder", view)
-    border:SetAllPoints(view)
-    border:EnableMouse(false)
-    border:SetFrameLevel(view:GetFrameLevel() + 2)
-    if _G.ForeverUI and type(ForeverUI.CreateNineSlice) == "function" then
-        pcall(ForeverUI.CreateNineSlice, border, "talents-inner-frame-c60",
-              24, { 0, 0, 0, 0 }, "OVERLAY")
-    end
-
-    -- The reference Talent panel is two large connected trees. We use the
-    -- genuine CoA node/edge widgets, not a counterfeit Blizzard 3-tree map.
-    local headings = CreateFrame("Frame", "AzerothForeverCoATreeHeadings", view)
-    headings:SetAllPoints(view)
-    headings:EnableMouse(false)
-    headings:SetFrameLevel(view:GetFrameLevel()+4)
-    local function makeHeading(x, text)
-        local t=headings:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-        t:SetPoint("TOP",headings,"TOP",x,-57)
-        t:SetWidth(425)
-        t:SetJustifyH("CENTER")
-        t:SetText(text)
-        t:SetTextColor(1,.83,.49)
-        return t
-    end
-    R.classHeading=makeHeading(-300,"CLASS TALENTS")
-    R.specHeading=makeHeading(300,"SPECIALIZATION TALENTS")
-
-
-    -- A subtle line behind the TWO original 3.3.5-compatible class trees;
-    -- all connections/points continue to come from TalentTreeBase.
-    for _,tree in ipairs({view.ClassTree,view.SpecTree}) do
-        if tree.SetBackdrop then
-            tree:SetBackdrop({
-                bgFile="Interface\\Buttons\\WHITE8X8",
-                edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
-                edgeSize=12,
-                insets={left=2,right=2,top=2,bottom=2},
-            })
-            tree:SetBackdropColor(.015,.025,.05,.18)
-            tree:SetBackdropBorderColor(.33,.34,.39,.45)
-        end
-    end
-
-    -- Keep the existing labels and point counts connected to CoA updates,
-    -- only change typography.
-    for _, t in ipairs({ view.ClassTree, view.SpecTree }) do
-        resetTextStyle(t.Label, GameFontNormalLarge, 1, 0.83, 0.44)
-        resetTextStyle(t.Points, GameFontNormalLarge)
-        -- The legacy CoA headers are different sizes and sit directly on top
-        -- of the modern row. Their values are mirrored into our new headings,
-        -- but the original FontStrings remain intact for CoA layout updates.
-        if t.Label and t.Label.SetAlpha then t.Label:SetAlpha(0) end
-        if t.Points and t.Points.SetAlpha then t.Points:SetAlpha(0) end
-    end
-
-    if bar.Texture then bar.Texture:SetAlpha(0.25) end
-    -- Restyle the *original* CoA buttons using modern client art.
-    -- No OnClick handlers are replaced: purchase validation stays on the
-    -- live C_CharacterAdvancement API and existing server.
-    local tpl = _G.ForeverUI and ForeverUI.Templates
-    if tpl and type(tpl.ThreeSliceButton) == "function" then
-        for _, btn in ipairs({ bar.SaveChanges, bar.ChangeSpec }) do
-            pcall(tpl.ThreeSliceButton, btn, "128-redbutton",
-                  { GameFontHighlightLarge, GameFontHighlightLarge, GameFontDisableLarge })
-        end
-    end
-    local bottomArt = bar:CreateTexture(nil, "BACKGROUND")
-    bottomArt:SetAllPoints(bar)
-    bottomArt:SetTexture("Interface\\Buttons\\WHITE8X8")
-    bottomArt:SetVertexColor(0.045, 0.05, 0.065, 0.97)
-
-    -- Single CoA search: this is the SAME EditBox that runs
-    -- C_CharacterAdvancement.SetFilteredEntries(), no second search.
-    local old = bar.Search
-    old:SetWidth(212)
-    old:SetHeight(24)
-    old:ClearAllPoints()
-    old:SetPoint("RIGHT", bar.SaveChanges, "LEFT", -30, 0)
-
-    -- Preserve the exact buttons' original OnClick handlers, especially:
-    -- CharacterAdvancementUtil.ConfirmApplyPendingBuild() (Save),
-    -- C_CharacterAdvancement.CancelPendingBuild() (Undo),
-    -- and the native CoA specialization chooser.
-    bar.SaveChanges:SetWidth(164)
-    bar.SaveChanges:SetHeight(27)
-    bar.ChangeSpec:SetWidth(164)
-    bar.ChangeSpec:SetHeight(27)
-
-    -- CoA has specializations; the spec-selection view remains the original
-    -- ClassInfo-driven view, presented in the same modern outer shell.
-    if panel.SpecView.Background then
-        panel.SpecView.Background:SetAlpha(0.48)
-    end
-    -- Keep the authentic CoA specialization chooser and its class-specific
-    -- artwork, with the modern dark stone frame around its selectable cards.
-    local specDecor = CreateFrame("Frame", "AzerothForeverCoASpecBorder", panel.SpecView)
-    specDecor:SetAllPoints(panel.SpecView)
-    specDecor:SetFrameLevel(panel.SpecView:GetFrameLevel() + 2)
-    specDecor:EnableMouse(false)
-    if _G.ForeverUI and type(ForeverUI.CreateNineSlice) == "function" then
-        pcall(ForeverUI.CreateNineSlice, specDecor, "talents-inner-frame-c60",
-              24, { 0, 0, 0, 0 }, "OVERLAY")
-    end
-
-    R.panel = panel
-    R.SyncHeadings()
-    if hooksecurefunc and type(view.UpdatePoints) == "function" then
-        pcall(hooksecurefunc, view, "UpdatePoints", function()
-            R.SyncHeadings()
-        end)
-    end
-    if not view.afForeverTalentTreeOnShow then
-        view.afForeverTalentTreeOnShow=true
-        view:HookScript("OnShow",function()
-            R.SyncHeadings()
-        end)
+    local visual=AF.CoATreeVisuals
+    if visual and type(visual.Apply)=="function" then
+        local ok,err=pcall(visual.Apply)
+        if not ok then fail(err) end
     end
     return true
 end
 
-function R.SyncHeadings()
-    if not R.classHeading or not R.specHeading then return end
-    local name=(UnitClass and UnitClass("player")) or "Class"
-    local api=_G.C_CharacterAdvancement
-    local id=api and api.GetActiveChrSpec and api.GetActiveChrSpec()
-    local info=id and _G.C_ClassInfo and C_ClassInfo.GetSpecInfoByID
-        and C_ClassInfo.GetSpecInfoByID(id)
-    local classTitle=string.upper(tostring(name)).." TALENTS"
-    local specTitle=string.upper(tostring(info and info.Name or "Specialization")).." TALENTS"
-    local view=R.panel and R.panel.TreeView
-    if view then
-        local classPoints=view.ClassTree and view.ClassTree.Points
-        local specPoints=view.SpecTree and view.SpecTree.Points
-        if classPoints and classPoints.GetText and classPoints:GetText() then
-            classTitle=classTitle.."   |   "..tostring(classPoints:GetText()).." FREE"
-        end
-        if specPoints and specPoints.GetText and specPoints:GetText() then
-            specTitle=specTitle.."   |   "..tostring(specPoints:GetText()).." FREE"
-        end
-    end
-    R.classHeading:SetText(classTitle)
-    R.specHeading:SetText(specTitle)
-end
-
 function R.RemoveAscensionCollectionTabs()
-    if not inCoA() then return end
-    local collections = _G.Collections
-    if not collections or not collections.Tabs then return end
+    if not isCoA() then return end
+    local c=_G.Collections
+    if not c or not c.Tabs or not c.Tabs.CharacterAdvancement or
+       type(c.HideTabID)~="function" then return end
     if R.tabsPruned then return end
-    -- The core tab is mandatory. Vanity and the old Ascension Wardrobe are
-    -- removed from navigation; Forever transmog lives at an NPC panel.
-    if not collections.Tabs.CharacterAdvancement then return end
-    if type(collections.HideTabID) == "function" then
-        for _, key in ipairs({ "Vanity", "Wardrobe", "SeasonalCollection",
-                                "MysticEnchants", "SkillCards" }) do
-            local id = collections.Tabs[key]
-            if id then
-                collections:HideTabID(id)
-            end
-        end
-        R.tabsPruned = true
+    for _,name in ipairs({"Vanity","Wardrobe","SeasonalCollection",
+                           "MysticEnchants","SkillCards"}) do
+        local id=c.Tabs[name]
+        if id then pcall(c.HideTabID,c,id) end
     end
+    R.tabsPruned=true
 end
 
 function R.Fit()
-    local panel = _G.CoATalentFrame
-    local collections = _G.Collections
-    if not (panel and collections and UIParent) then return end
-    if InCombatLockdown and InCombatLockdown() then return end
-    -- The Collections shell is scaled only enough to fit on-screen.
-    -- Avoid overriding CoA's original scale on large screens.
-    local w, h = collections:GetWidth(), collections:GetHeight()
-    local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
-    if not w or w <= 0 or not h or h <= 0 then return end
-    local original = collections:GetScale() or 1
-    local limit = math.min(1, (sw - 90) / w, (sh - 90) / h)
-    -- Modern Forever talent panels are a little more compact than the
-    -- old Ascension screen; respect a user's already smaller custom scale.
-    collections:SetScale(math.min(original, 0.90, math.max(0.65, limit)))
+    local c=_G.Collections
+    if not c or not UIParent then return end
+    if type(InCombatLockdown)=="function" and InCombatLockdown() then return end
+    local w,h=c:GetWidth(),c:GetHeight()
+    if not w or not h or w<=0 or h<=0 then return end
+    local screenW,screenH=UIParent:GetWidth(),UIParent:GetHeight()
+    local fit=math.min(1,(screenW-74)/w,(screenH-74)/h)
+    local current=c:GetScale() or 1
+    -- Keep user's smaller UI scale, and fit large 1290px CoA talent windows.
+    local selected=math.max(.65,math.min(current,.90,fit))
+    c:SetScale(selected)
 end
 
 function R.Open()
-    if not inCoA() then return false end
-    if type(_G.CharacterAdvancement_LoadUI) == "function" then
-        pcall(_G.CharacterAdvancement_LoadUI)
+    if not isCoA() then return false end
+    if type(_G.CharacterAdvancement_LoadUI)=="function" then
+        pcall(CharacterAdvancement_LoadUI)
     end
-    local c = _G.Collections
-    if c and c.Tabs and c.Tabs.CharacterAdvancement and
-        type(c.GoToTab) == "function" then
-        R.RemoveAscensionCollectionTabs()
-        c:GoToTab(c.Tabs.CharacterAdvancement)
-        R.Style()
-        R.Fit()
-        return true
+    local c=_G.Collections
+    if not c or not c.Tabs or not c.Tabs.CharacterAdvancement then
+        fail("CoA talents not yet loaded")
+        return false
     end
-    uiError("CoA Character Advancement is not loaded. Use its native N key.")
-    return false
+    if type(c.GoToTab)~="function" then return false end
+    c:GoToTab(c.Tabs.CharacterAdvancement)
+    R.Style()
+    local home=AF.CoATreeHome
+    if home and type(home.OpenTrees)=="function" then
+        pcall(home.OpenTrees)
+    end
+    R.Fit()
+    return true
 end
-AF.OpenTalents = R.Open
+AF.OpenTalents=R.Open
 
 local function attach()
-    if not inCoA() then return end
-    local p = _G.CoATalentFrame
-    if not p or p.afForeverTalentHooked then return end
-    p.afForeverTalentHooked = true
-    p:HookScript("OnShow", function()
-        R.Style()
+    if not isCoA() then return false end
+    local root=_G.CoATalentFrame
+    if not root or R.attached==root then return R.attached==root end
+    R.attached=root
+    root:HookScript("OnShow",function()
+        local ok,err=pcall(R.Style)
+        if not ok then fail(err) end
         R.RemoveAscensionCollectionTabs()
         R.Fit()
     end)
     R.Style()
     R.RemoveAscensionCollectionTabs()
+    return true
 end
 
-local events = CreateFrame("Frame")
-events:RegisterEvent("ADDON_LOADED")
+local events=CreateFrame("Frame")
 events:RegisterEvent("PLAYER_LOGIN")
+events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_REGEN_ENABLED")
-events:SetScript("OnEvent", function(self, event, name)
-    if event == "PLAYER_LOGIN" or event == "PLAYER_REGEN_ENABLED" or
-       (event == "ADDON_LOADED" and
-        (name == "Ascension_CoATalents" or name == "Ascension_Collections")) then
-        attach()
+events:SetScript("OnEvent",function(self,event,name)
+    if event=="PLAYER_LOGIN" or event=="PLAYER_REGEN_ENABLED" or
+       (event=="ADDON_LOADED" and
+        (name=="Ascension_CoATalents" or name=="Ascension_Collections")) then
+        local ok,err=pcall(attach)
+        if not ok then fail(err) end
     end
 end)
--- CoA's UI is load-on-demand; a low-frequency fallback handles builds that
--- do not fire the standard addon event when the patched client loads it.
-events.elapsed = 0
-events:SetScript("OnUpdate", function(self, dt)
-    if not inCoA() or self.discovered then return end
-    self.elapsed = self.elapsed + (dt or 0)
-    if self.elapsed >= 1 then
-        self.elapsed = 0
-        attach()
-        if _G.CoATalentFrame and _G.CoATalentFrame.afForeverTalentHooked then
-            self.discovered = true
-            self:SetScript("OnUpdate", nil)
-        end
+events.elapsed=0
+events:SetScript("OnUpdate",function(self,dt)
+    if R.attached or not isCoA() then return end
+    self.elapsed=self.elapsed+(dt or 0)
+    if self.elapsed>1 then
+        self.elapsed=0
+        local ok,err=pcall(attach)
+        if not ok then fail(err) end
     end
 end)
