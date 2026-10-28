@@ -146,16 +146,7 @@ function R.Style()
     end
     R.classHeading=makeHeading(-300,"CLASS TALENTS")
     R.specHeading=makeHeading(300,"SPECIALIZATION TALENTS")
-    local function makeCounter(x)
-        local p=headings:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-        p:SetPoint("TOP",headings,"TOP",x,-81)
-        p:SetWidth(390)
-        p:SetJustifyH("CENTER")
-        p:SetTextColor(.86,.72,.42)
-        return p
-    end
-    R.classCounter=makeCounter(-300)
-    R.specCounter=makeCounter(300)
+
 
     -- A subtle line behind the TWO original 3.3.5-compatible class trees;
     -- all connections/points continue to come from TalentTreeBase.
@@ -235,6 +226,11 @@ function R.Style()
 
     R.panel = panel
     R.SyncHeadings()
+    if hooksecurefunc and type(view.UpdatePoints) == "function" then
+        pcall(hooksecurefunc, view, "UpdatePoints", function()
+            R.SyncHeadings()
+        end)
+    end
     if not view.afForeverTalentTreeOnShow then
         view.afForeverTalentTreeOnShow=true
         view:HookScript("OnShow",function()
@@ -247,25 +243,25 @@ end
 function R.SyncHeadings()
     if not R.classHeading or not R.specHeading then return end
     local name=(UnitClass and UnitClass("player")) or "Class"
-    R.classHeading:SetText(string.upper(tostring(name)) .. " TALENTS")
     local api=_G.C_CharacterAdvancement
     local id=api and api.GetActiveChrSpec and api.GetActiveChrSpec()
     local info=id and _G.C_ClassInfo and C_ClassInfo.GetSpecInfoByID
         and C_ClassInfo.GetSpecInfoByID(id)
-    R.specHeading:SetText(string.upper(tostring(info and info.Name or "Specialization")) .. " TALENTS")
-    local tree=R.panel and R.panel.TreeView
-    if tree then
-        -- Read the original CoA pending-points FontStrings, not 1.12/WotLK
-        -- GetTalentTabInfo values. These numbers remain authoritative.
-        if R.classCounter and tree.ClassTree and tree.ClassTree.Points then
-            local n=tree.ClassTree.Points:GetText()
-            R.classCounter:SetText(n and ("CoA points remaining: "..tostring(n)) or "")
+    local classTitle=string.upper(tostring(name)).." TALENTS"
+    local specTitle=string.upper(tostring(info and info.Name or "Specialization")).." TALENTS"
+    local view=R.panel and R.panel.TreeView
+    if view then
+        local classPoints=view.ClassTree and view.ClassTree.Points
+        local specPoints=view.SpecTree and view.SpecTree.Points
+        if classPoints and classPoints.GetText and classPoints:GetText() then
+            classTitle=classTitle.."   |   "..tostring(classPoints:GetText()).." FREE"
         end
-        if R.specCounter and tree.SpecTree and tree.SpecTree.Points then
-            local n=tree.SpecTree.Points:GetText()
-            R.specCounter:SetText(n and ("CoA points remaining: "..tostring(n)) or "")
+        if specPoints and specPoints.GetText and specPoints:GetText() then
+            specTitle=specTitle.."   |   "..tostring(specPoints:GetText()).." FREE"
         end
     end
+    R.classHeading:SetText(classTitle)
+    R.specHeading:SetText(specTitle)
 end
 
 function R.RemoveAscensionCollectionTabs()
