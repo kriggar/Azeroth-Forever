@@ -1,0 +1,207 @@
+{
+  "name": "Azeroth Forever - mandatory WoW: Forever 2026 native-client UI",
+  "implementation": "Client FrameXML/MPQ; no separate AzerothForeverUI addon",
+  "reference_date": "2026-10-28",
+  "design_sources": [
+    "https://worldofwarcraft.blizzard.com/en-us/forever/",
+    "https://www.wowhead.com/forever/guide/ui/ui-hud-edit-mode-guide",
+    "https://www.method.gg/wow-forever/understanding-wow-forevers-ui"
+  ],
+  "behavior_policy": "Preserve all 21 CoA classes, their class and specialization talent trees, spell learning, required trainers, maps and quests. Client presentation may change; data/server protocols may not be replaced by stock WotLK talent logic.",
+  "panels": {
+    "action_bars": {
+      "source": [
+        "ActionBar.lua",
+        "MultiBars.lua",
+        "BottomBar.lua",
+        "StatusBars.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "player_frames": {
+      "source": [
+        "PlayerFrame.lua",
+        "PlayerFrameExtras.lua",
+        "TargetFrame.lua",
+        "PartyFrame.lua",
+        "RaidFrame.lua",
+        "CastBar.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "minimap": {
+      "source": [
+        "Minimap.lua",
+        "MinimapQuests.lua",
+        "ObjectiveTracker.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "chat": {
+      "source": [
+        "Chat.lua",
+        "ChatConfig.lua",
+        "Buffs.lua",
+        "Tooltips.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "game_menu": {
+      "source": [
+        "GameMenu.lua",
+        "BottomBar.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "bags": {
+      "source": [
+        "Bags.lua",
+        "Bank.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "character_sheet": {
+      "source": [
+        "CharacterFrame.lua",
+        "EquipmentManager.lua",
+        "ReputationTab.lua",
+        "SkillsTab.lua",
+        "StatisticsTab.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "spellbook": {
+      "source": [
+        "SpellBook.lua",
+        "SpellBookSearch.lua",
+        "ProfessionsBook.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "talent_panel": {
+      "source": [
+        "AzerothForeverCoATalents.lua"
+      ],
+      "status": "native_coa_adapter",
+      "behavior": "CoATalentFrame + C_CharacterAdvancement; original Save/Undo, 21 classes, Class/Spec trees. WotLK Talents.lua/TalentsSearch.lua are NOT loaded"
+    },
+    "quest_log": {
+      "source": [
+        "QuestLog.lua",
+        "ObjectiveTracker.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "world_map": {
+      "source": [
+        "WorldMap.lua",
+        "WorldMapInstances.lua",
+        "WorldMapZoom.lua",
+        "ZoneMap.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "achievements": {
+      "source": [
+        "Achievements.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "settings": {
+      "source": [
+        "Settings.lua",
+        "AzerothForeverNativeSettings.lua"
+      ],
+      "status": "native_extension",
+      "behavior": "Real 3.3.5 CVars; UI scale and selected controls. Modern Forever 2026 exact settings parity pending"
+    },
+    "ui_edit_mode": {
+      "source": [
+        "CustomizeUI.lua",
+        "Layout.lua"
+      ],
+      "status": "modern_port_loaded",
+      "behavior": "Still lacks complete native persistence without SavedVariables; requires client settings bridge"
+    },
+    "professions": {
+      "source": [
+        "ProfessionsBook.lua",
+        "TradeSkill.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "guild_social": {
+      "source": [
+        "GuildFrame.lua",
+        "GuildRoster.lua",
+        "Social.lua",
+        "SocialRaid.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "group_finder": {
+      "source": [
+        "GroupFinder.lua",
+        "GroupFinderRaid.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "trade_auction_mail": {
+      "source": [
+        "Trade.lua",
+        "AuctionHouse.lua",
+        "Mail.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "npc_dialogs": {
+      "source": [
+        "NpcDialog.lua",
+        "Merchant.lua",
+        "Trainer.lua",
+        "Taxi.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "inspect": {
+      "source": [
+        "Inspect.lua"
+      ],
+      "status": "modern_port_loaded",
+      "behavior": "Visual panel ported; native inspect-talents must use CoA advancement rather than unavailable WotLK-only tree"
+    },
+    "transmog": {
+      "source": [
+        "AzerothForeverNativeTransmog.lua"
+      ],
+      "status": "native_extension_backend_pending",
+      "behavior": "NPC-operated native appearance UI. Requires separate server-side appearance service before persisting; not yet exact art parity"
+    },
+    "gamepad": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Controller focus, action bar settings and prompts require client input-engine extensions"
+    },
+    "legacy_progression": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever Legacy points/challenges need server/DB/protocol/UI; not an old vanity system"
+    },
+    "camping": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever Camping needs server/DB/quest crafting and dedicated UI"
+    },
+    "cooldown_manager": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever built-in cooldown manager and click-casting require modern client compatibility"
+    },
+    "appearance_preset": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever HD/SD model graphics options require client renderer and assets"
+    }
+  },
+  "validation": "Static CI checks presence and excludes conflicting WotLK talent loader. Status means code packaged, not pixel-perfect visual equivalence or in-game pass."
+}
