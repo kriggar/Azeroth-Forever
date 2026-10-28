@@ -91,7 +91,7 @@ local nativeMicroNames = {
 local function UpdateNativeUI()
     if not systemBar then return end
     local enabled = settings and settings.enabled
-    systemBar:SetShown(enabled)
+    if enabled then systemBar:Show() else systemBar:Hide() end
 
     if enabled then
         -- Only the standard micro menu is replaced. Action bars, spell UI,
@@ -115,6 +115,7 @@ local function CreateMenuButton(parent, item, index)
     local button = CreateFrame("Button", "AFUI_" .. item.id, parent)
     button:SetWidth(33)
     button:SetHeight(33)
+    button:RegisterForClicks("LeftButtonUp")
     button:SetPoint("LEFT", parent, "LEFT", 11 + (index - 1) * 37, 0)
 
     local bg = button:CreateTexture(nil, "BACKGROUND")
@@ -143,10 +144,6 @@ local function CreateMenuButton(parent, item, index)
     highlight:SetAllPoints(button)
 
     button:SetScript("OnClick", function()
-        if InCombatLockdown and InCombatLockdown() then
-            -- Non-protected default panels may still be opened during combat.
-            -- The action itself remains in the game's native UI handler.
-        end
         local ok, err = pcall(item.action)
         if not ok then Say("Could not open " .. item.title .. ": " .. tostring(err)) end
     end)
