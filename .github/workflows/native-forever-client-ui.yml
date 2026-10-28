@@ -64,7 +64,7 @@ jobs:
             --mpqcli "$RUNNER_TEMP/mpqcli" \
             --output "$RUNNER_TEMP/ui/patch-Z.MPQ"
           test -s "$RUNNER_TEMP/ui/patch-Z.MPQ"
-          grep -q 'AzerothForeverNative' "$RUNNER_TEMP/ui/patch-Z.MPQ.json"
+          grep -q '"native_loader_entries"' "$RUNNER_TEMP/ui/patch-Z.MPQ.json"
       - name: Publish Windows native UI installer source only
         uses: actions/upload-artifact@v4
         with:
