@@ -81,12 +81,12 @@
     "talent_panel": {
       "source": [
         "AzerothForeverCoATalents.lua",
-        "AzerothForeverCoASpecPicker.lua"
+        "AzerothForeverCoATreeHome.lua"
       ],
       "status": "native_coa_adapter",
-      "behavior": "CoATalentFrame & C_CharacterAdvancement remain authoritative. Initial specialization selection becomes a compact modern panel (original CoASpecChoiceMixin.OnSelected); choosing a spec enters the actual CoA Class and Specialization connected talent trees with original nodes/prerequisites, Save Changes, Undo and specialization switching. No stock WotLK GetTalentInfo controller.",
+      "behavior": "Opening Talents shows the real CoATalentFrame.TreeView.ClassTree and SpecTree, with connected prerequisite nodes populated via the CoA client DBC. A compact specialization tab row triggers the original CoASpecChoiceMixin.OnSelected handler. No four-card chooser, no fake node data, no WotLK GetTalentInfo logic. Server still validates Save/Undo, points, rank prerequisites.",
       "visual_reference": "World of Warcraft: Forever (2026) two connected talent trees (class and specialization), modern art, visible dependency branches and nodes; CoA node data unchanged.",
-      "validation": "Static Lua/MPQ and Windows upgrade tests only; actual user game screenshot pending."
+      "validation": "Lua and packaging checks are only static/mock; exact WoW Forever UI parity must be verified in the real CoA client."
     },
     "quest_log": {
       "source": [
