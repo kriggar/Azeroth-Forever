@@ -121,18 +121,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Exercise Windows installer on a fake existing CoA client
+      - name: Reproduce CoA patch-B UIParent.xml and existing patch-Z installation and rollback
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $root = Join-Path $env:RUNNER_TEMP 'CoA Client Fixture'
           $data = Join-Path $root 'Data'
+          # Reproduce user's actual setup: patch-Z.MPQ already exists, but
+          # patch-B.MPQ holds a STOCK 3.3.5 UIParent.xml FrameXML.toc.
           $seed = Join-Path $env:RUNNER_TEMP 'seed'
-          $base = Join-Path $seed 'Interface\FrameXML'
+          $seedB = Join-Path $env:RUNNER_TEMP 'seed-B'
+          $base = Join-Path $seedB 'Interface\FrameXML'
           $custom = Join-Path $seed 'CoA\Classes'
           New-Item -ItemType Directory -Path $data, $base, $custom -Force | Out-Null
           Set-Content -LiteralPath (Join-Path $root 'Wow.exe') -Value 'fixture-only'
-          Set-Content -LiteralPath (Join-Path $base 'FrameXML.toc') -Value "UIParent.lua$([Environment]::NewLine)AscensionClassBridge.lua"
+          $originalToc = "## Interface: 30300$([Environment]::NewLine)WorldFrame.xml$([Environment]::NewLine)UIParent.xml$([Environment]::NewLine)AscensionClassBridge.lua"
+          Set-Content -LiteralPath (Join-Path $base 'FrameXML.toc') -Value $originalToc
           Set-Content -LiteralPath (Join-Path $custom 'CustomClass.dat') -Value 'ORIGINAL_COA_CLASS_ASSET'
           $legacyAddon = Join-Path $root 'Interface\AddOns\AzerothForeverUI'
           New-Item -ItemType Directory -Force -Path $legacyAddon | Out-Null
@@ -147,13 +151,16 @@ jobs:
           if ($digest -ne 'ca4bc40d24ff0ae094e8e6118591a59cecb56b9227923e806e9a116d5e761277') {
             throw 'MPQ tool hash mismatch'
           }
+          & $cli create --game wow-wotlk --output (Join-Path $data 'patch-B.MPQ') $seedB
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create authentic 3.3.5 patch-B loader fixture' }
           & $cli create --game wow-wotlk --output (Join-Path $data 'patch-Z.MPQ') $seed
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to create original fixture patch' }
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create existing CoA patch-Z fixture' }
           $originalSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          $originalBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
           $sourceRoot = Join-Path $toolRoot 'mod-forever-ui-c5149b96a9938ae9073ff8bb1662e42d2b7b5090'
           Copy-Item -LiteralPath 'ui-upstream' -Destination $sourceRoot -Recurse
           $script = (Resolve-Path 'tools/forever-native-ui/Install-NativeForeverUI.ps1').Path
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -FrameXMLArchive (Join-Path $data 'patch-Z.MPQ')
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -FrameXMLArchive (Join-Path $data 'patch-B.MPQ')
           if ($LASTEXITCODE -ne 0) { throw 'Windows native UI installer failed with original patch-Z present' }
           $manifest = Join-Path $data 'patch-Z.MPQ.azeroth-forever.json'
           if (-not (Test-Path $manifest)) { throw 'Successful installation did not create a manifest' }
@@ -174,13 +181,20 @@ jobs:
             throw 'Existing CoA class content changed'
           }
           $loader = Get-Content (Join-Path $extracted 'Interface\FrameXML\FrameXML.toc') -Raw
-          if ($loader -notmatch 'AscensionClassBridge.lua' -or $loader -notmatch 'AzerothForeverNativeBegin.lua') {
-            throw 'Existing CoA class loader or native UI loader is missing'
+          if ($loader -notmatch 'AscensionClassBridge.lua' -or
+              $loader -notmatch 'UIParent.xml' -or
+              $loader -notmatch 'AzerothForeverNativeBegin.lua') {
+            throw 'Stock 3.3.5 XML loader, CoA class loader or native UI loader is missing'
           }
+          $afterBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
+          if ($afterBSha -ne $originalBSha) { throw 'Installer changed original patch-B.MPQ' }
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -Restore
           if ($LASTEXITCODE -ne 0) { throw 'Restore original CoA client patch failed' }
           $restoredSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
           if ($restoredSha -ne $originalSha) { throw 'Restore did not return exact original CoA patch' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant() -ne $originalBSha) {
+            throw 'Restore changed original FrameXML source archive'
+          }
           if (-not (Test-Path (Join-Path $legacyAddon 'old-addon.txt'))) {
             throw 'Legacy addon was not restored as promised'
           }
