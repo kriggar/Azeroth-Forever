@@ -48,6 +48,7 @@ jobs:
           lua5.1 tools/forever-native-ui/tests/test_coa_tree_home.lua
           lua5.1 tools/forever-native-ui/tests/test_native_game_menu.lua
           lua5.1 tools/forever-native-ui/tests/test_coa_talent_visuals.lua
+          lua5.1 tools/forever-native-ui/tests/test_native_micro_menu.lua
       - name: Verify complete upstream full-UI source Lua syntax
         run: |
           while IFS= read -r file; do
