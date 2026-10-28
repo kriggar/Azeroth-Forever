@@ -146,6 +146,16 @@ function R.Style()
     end
     R.classHeading=makeHeading(-300,"CLASS TALENTS")
     R.specHeading=makeHeading(300,"SPECIALIZATION TALENTS")
+    local function makeCounter(x)
+        local p=headings:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
+        p:SetPoint("TOP",headings,"TOP",x,-81)
+        p:SetWidth(390)
+        p:SetJustifyH("CENTER")
+        p:SetTextColor(.86,.72,.42)
+        return p
+    end
+    R.classCounter=makeCounter(-300)
+    R.specCounter=makeCounter(300)
 
     -- A subtle line behind the TWO original 3.3.5-compatible class trees;
     -- all connections/points continue to come from TalentTreeBase.
@@ -167,6 +177,11 @@ function R.Style()
     for _, t in ipairs({ view.ClassTree, view.SpecTree }) do
         resetTextStyle(t.Label, GameFontNormalLarge, 1, 0.83, 0.44)
         resetTextStyle(t.Points, GameFontNormalLarge)
+        -- The legacy CoA headers are different sizes and sit directly on top
+        -- of the modern row. Their values are mirrored into our new headings,
+        -- but the original FontStrings remain intact for CoA layout updates.
+        if t.Label and t.Label.SetAlpha then t.Label:SetAlpha(0) end
+        if t.Points and t.Points.SetAlpha then t.Points:SetAlpha(0) end
     end
 
     if bar.Texture then bar.Texture:SetAlpha(0.25) end
@@ -238,6 +253,19 @@ function R.SyncHeadings()
     local info=id and _G.C_ClassInfo and C_ClassInfo.GetSpecInfoByID
         and C_ClassInfo.GetSpecInfoByID(id)
     R.specHeading:SetText(string.upper(tostring(info and info.Name or "Specialization")) .. " TALENTS")
+    local tree=R.panel and R.panel.TreeView
+    if tree then
+        -- Read the original CoA pending-points FontStrings, not 1.12/WotLK
+        -- GetTalentTabInfo values. These numbers remain authoritative.
+        if R.classCounter and tree.ClassTree and tree.ClassTree.Points then
+            local n=tree.ClassTree.Points:GetText()
+            R.classCounter:SetText(n and ("CoA points remaining: "..tostring(n)) or "")
+        end
+        if R.specCounter and tree.SpecTree and tree.SpecTree.Points then
+            local n=tree.SpecTree.Points:GetText()
+            R.specCounter:SetText(n and ("CoA points remaining: "..tostring(n)) or "")
+        end
+    end
 end
 
 function R.RemoveAscensionCollectionTabs()
@@ -272,7 +300,9 @@ function R.Fit()
     if not w or w <= 0 or not h or h <= 0 then return end
     local original = collections:GetScale() or 1
     local limit = math.min(1, (sw - 90) / w, (sh - 90) / h)
-    collections:SetScale(math.min(original, math.max(0.65, limit)))
+    -- Modern Forever talent panels are a little more compact than the
+    -- old Ascension screen; respect a user's already smaller custom scale.
+    collections:SetScale(math.min(original, 0.90, math.max(0.65, limit)))
 end
 
 function R.Open()
