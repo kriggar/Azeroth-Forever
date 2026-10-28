@@ -49,6 +49,14 @@ def main():
     world = parse_config("src/server/apps/worldserver/worldserver.conf.dist")
     check(world.get("StartPlayerLevel") == "1", "Start at level 1")
     check(world.get("MaxPlayerLevel") == "60", "Vanilla cap is level 60")
+    for key in ("Rate.XP.Global", "Rate.XP.Kill", "Rate.XP.Kill.TBC",
+                "Rate.XP.Kill.WotLK", "Rate.XP.Quest", "Rate.XP.Quest.TBC",
+                "Rate.XP.Quest.WotLK", "Rate.XP.Explore"):
+        check(world.get(key) == "1", f"Vanilla 1x XP required for {key}")
+    check(world.get("Rate.XP.Profession") == "0",
+          "Gathering and crafting must not grant character experience")
+    for key in ("Rate.XP.Elite", "Rate.XP.DungeonElite"):
+        check(world.get(key) == "2", f"Classic elite XP expected for {key}")
 
     checks = {
         "src/server/coa/AscensionRulesets.cpp": [
