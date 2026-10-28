@@ -1,0 +1,32 @@
+name: Validate Azeroth Forever profile and UI syntax
+
+on:
+  push:
+    branches: [feature/vanilla-coa-baseline]
+    paths:
+      - 'modules/CMakeLists.txt'
+      - 'src/server/coa/**'
+      - 'tools/forever-ui/**'
+      - 'tools/vanilla-restoration/**'
+      - '.github/workflows/forever-profile-checks.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1 syntax checker
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lua5.1
+      - name: Parse WoW 3.3.5-compatible UI addon
+        run: luac5.1 -p tools/forever-ui/AzerothForeverUI/AzerothForeverUI.lua
+      - name: Verify CoA profile and cleanup guards
+        run: python3 tools/forever-ui/tests/validate_profile.py
