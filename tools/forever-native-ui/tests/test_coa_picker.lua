@@ -9,17 +9,17 @@ local function frame(name)
                 if key=="CreateTexture" or key=="CreateFontString" then
                     return frame()
                 elseif key=="GetFrameLevel" then return self.level
-                elseif key=="SetFrameLevel" then self.level=...; return end
-                elseif key=="Show" then self.shown=true; return end
-                elseif key=="Hide" then self.shown=false; return end
-                elseif key=="IsShown" then return self.shown end
-                elseif key=="SetAlpha" then self.alpha=...; return end
-                elseif key=="EnableMouse" then self.enabled=...; return end
-                elseif key=="SetTexture" then self.texture=...; return end
-                elseif key=="GetTexture" then return self.texture end
-                elseif key=="GetTexCoord" then return 0,1,0,1 end
-                elseif key=="SetText" then self.text=...; return end
-                elseif key=="GetText" then return self.text end
+                elseif key=="SetFrameLevel" then self.level=...; return
+                elseif key=="Show" then self.shown=true; return
+                elseif key=="Hide" then self.shown=false; return
+                elseif key=="IsShown" then return self.shown
+                elseif key=="SetAlpha" then self.alpha=...; return
+                elseif key=="EnableMouse" then self.enabled=...; return
+                elseif key=="SetTexture" then self.texture=...; return
+                elseif key=="GetTexture" then return self.texture
+                elseif key=="GetTexCoord" then return 0,1,0,1
+                elseif key=="SetText" then self.text=...; return
+                elseif key=="GetText" then return self.text
                 elseif key=="SetScript" then
                     local event,cb=...
                     self.scripts[event]=cb
@@ -28,8 +28,8 @@ local function frame(name)
                     local event,cb=...
                     self.hooks[event]=cb
                     return
-                elseif key=="Enable" then self.disabled=false; return end
-                elseif key=="Disable" then self.disabled=true; return end
+                elseif key=="Enable" then self.disabled=false; return
+                elseif key=="Disable" then self.disabled=true; return
                 end
                 return
             end
