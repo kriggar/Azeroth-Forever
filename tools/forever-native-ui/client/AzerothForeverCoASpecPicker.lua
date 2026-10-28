@@ -31,7 +31,7 @@ local function atl(texture, name)
 end
 local function flat(parent, level, r, g, b, a)
     local t=parent:CreateTexture(nil, level or "BACKGROUND")
-    t:SetTexture("Interface\Buttons\WHITE8X8")
+    t:SetTexture("Interface\\Buttons\\WHITE8X8")
     t:SetVertexColor(r or .04,g or .05,b or .07,a or 1)
     return t
 end
@@ -47,8 +47,8 @@ end
 local function border(frame)
     if frame.SetBackdrop then
         frame:SetBackdrop({
-            bgFile="Interface\DialogFrame\UI-DialogBox-Background",
-            edgeFile="Interface\Tooltips\UI-Tooltip-Border",
+            bgFile="Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
             tile=true,tileSize=32,edgeSize=20,
             insets={left=5,right=5,top=5,bottom=5}
         })
@@ -94,7 +94,7 @@ local function repaintBanner(original)
         if uv and #uv==4 then R.banner:SetTexCoord(unpack(uv))
         else R.banner:SetTexCoord(0,1,0,1) end
     else
-        R.banner:SetTexture("Interface\Icons\INV_Misc_QuestionMark")
+        R.banner:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
         R.banner:SetTexCoord(0,1,0,1)
     end
 end
@@ -124,10 +124,10 @@ local function refreshEntryImages()
             button.role:SetText(pad(info.Role or info.RoleName or "CoA Specialization"))
             local icon=info.SpecFilename or info.Icon
             if icon and icon~="" then
-                button.icon:SetTexture("Interface\Icons\"..tostring(icon))
+                button.icon:SetTexture("Interface\\Icons\\"..tostring(icon))
             else
                 local texture=sourceImg(original)
-                button.icon:SetTexture(texture or "Interface\Icons\INV_Misc_QuestionMark")
+                button.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
             end
             if selected then
                 button.bg:SetVertexColor(.11,.15,.21,1)
@@ -159,7 +159,7 @@ local function refreshDetails()
         local id=info.ExampleSpells and info.ExampleSpells[i] or nil
         if id then
             spell:SetTexture(GetSpellTexture and GetSpellTexture(id) or
-                "Interface\Icons\INV_Misc_QuestionMark")
+                "Interface\\Icons\\INV_Misc_QuestionMark")
             spell:Show()
         else
             spell:Hide()
@@ -221,7 +221,7 @@ local function makeEntry(parent,index)
     b.name=label(b,"", "GameFontNormalLarge",94,-22,165,{1,.88,.63})
     b.role=label(b,"", "GameFontHighlightSmall",94,-57,165,{.73,.79,.86})
     local hover=b:CreateTexture(nil,"HIGHLIGHT")
-    hover:SetTexture("Interface\Buttons\ButtonHilight-Square")
+    hover:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
     hover:SetAllPoints(b)
     hover:SetBlendMode("ADD")
     b:SetScript("OnClick",function()
