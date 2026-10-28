@@ -3,6 +3,7 @@
  */
 
 #include "CoAScriptLoader.h"
+#include "Config.h"
 #include "AscensionReaperDirge.h"
 #include "AscensionTinkerOverload.h"
 #include "AscensionRunemasterGlyphs.h"
@@ -416,13 +417,16 @@ void AddSC_XPHotspots();
 
 void AddCoAScripts()
 {
+    bool const vanilla = sConfigMgr->GetOption<bool>("AzerothForever.VanillaMode", true);
+    // Only CoA class, trainer, class-quest and map scripts stay active in vanilla mode.
+    // Unrelated account rewards, portals, convenience and seasonal subsystems are optional.
     AddAscensionStockCoefficientScripts();
     AddAscensionScalingBaseScripts();
-    AddAscensionManastormItemScripts();
+    if (!vanilla) AddAscensionManastormItemScripts();
     AddSC_AscensionReaperDirge();
     AddAscensionTinkerOverloadScripts();
     AddAscensionCompatScripts();
-    AddAscensionTravelPermitScripts();
+    if (!vanilla) AddAscensionTravelPermitScripts();
     AddAscensionBarbarianCompletionScripts();
     AddAscensionBarbarianEventScripts();
     AddAscensionBarbarianAbilityScripts();
@@ -560,7 +564,7 @@ void AddCoAScripts()
     AddSC_AscensionPrimalistDreamslip();
     AddSC_AscensionPrimalistDouse();
     AddSC_AscensionPrimalistNeptulonWrath();
-    AddSC_AscensionConvenienceItems();
+    if (!vanilla) AddSC_AscensionConvenienceItems();
     AddSC_AscensionRaidDamageAuras();
     AddSC_AscensionBloodmageBloodShards();
     AddSC_AscensionPrimalistSacredGrove();
@@ -631,43 +635,43 @@ void AddCoAScripts()
     AddSC_AscensionChronomancerTime();
     AddSC_AscensionChronomancerRenewal();
     AddSC_AscensionChronomancerMovement();
-    AddSC_AscensionAdventurerCache();
-    AddSC_AscensionBankVoucher();
-    AddSC_AscensionRunePouches();
-    AddSC_AscensionUpgradeKits();
-    AddSC_AscensionProfessionRanks();
-    AddSC_AscensionPrestigiousCache();
-    AddSC_AscensionCallboardCache();
-    AddSC_AscensionQuestMarkers();
-    AddSC_AscensionFireLordCache();
-    AddSC_AscensionTierTokenVendor();
-    AddSC_AscensionFeatherOfAncients();
+    if (!vanilla) AddSC_AscensionAdventurerCache();
+    if (!vanilla) AddSC_AscensionBankVoucher();
+    if (!vanilla) AddSC_AscensionRunePouches();
+    if (!vanilla) AddSC_AscensionUpgradeKits();
+    if (!vanilla) AddSC_AscensionProfessionRanks();
+    if (!vanilla) AddSC_AscensionPrestigiousCache();
+    if (!vanilla) AddSC_AscensionCallboardCache();
+    if (!vanilla) AddSC_AscensionQuestMarkers();
+    if (!vanilla) AddSC_AscensionFireLordCache();
+    if (!vanilla) AddSC_AscensionTierTokenVendor();
+    if (!vanilla) AddSC_AscensionFeatherOfAncients();
     AddSC_AscensionVultureCultQuests();
-    AddSC_AscensionCaravanCarts();
+    if (!vanilla) AddSC_AscensionCaravanCarts();
     AddSC_AscensionRoamingCreatureGrids();
     AddSC_AscensionNorthshireRuins();
     AddSC_AscensionStormwindKeepDoor();
     AddSC_AscensionShadewellClues();
     AddSC_AscensionIdealsArePoisonClues();
-    AddSC_AscensionTransformPresets();
-    AddSC_AscensionAreaQuestOffers();
+    if (!vanilla) AddSC_AscensionTransformPresets();
+    if (!vanilla) AddSC_AscensionAreaQuestOffers();
     AddSC_AscensionBlackwoodRifts();
     AddSC_AscensionCardensDiary();
     AddSC_AscensionCainManor();
-    AddSC_AscensionExperimentalTeleporter();
+    if (!vanilla) AddSC_AscensionExperimentalTeleporter();
     AddSC_AscensionBotParachute();
     AddSC_AscensionThreeTotems();
-    AddSC_AscensionInnRest();
+    if (!vanilla) AddSC_AscensionInnRest();
     AddSC_AscensionReaperRuin();
     AddSC_AscensionReaperRedshade();
     AddSC_AscensionReaperSpellContracts();
     AddSC_AscensionReaperTalentProcs();
-    AddSC_AscensionPersonalBank();
-    AddSC_AscensionWisdomball();
+    if (!vanilla) AddSC_AscensionPersonalBank();
+    if (!vanilla) AddSC_AscensionWisdomball();
     AddSC_AscensionBloodmageTalents();
     AddSC_AscensionBloodmageVitality();
     AddSC_AscensionBloodmageProcs();
-    AddSC_AscensionTierSetHarvest();
+    if (!vanilla) AddSC_AscensionTierSetHarvest();
     AddSC_AscensionReaperReflexes();
     AddSC_AscensionPrimalistMountain();
     AddSC_AscensionChronomancerRipple();
@@ -704,11 +708,11 @@ void AddCoAScripts()
     AddAscensionVenomancerVenomTalentScripts();
     AddAscensionVenomancerVenomPayloadScripts();
     AddAscensionTinkerCombatSymbiosisScripts();
-    AddSC_XPHotspots();
+    if (!vanilla) AddSC_XPHotspots();
     AddCoABugReportScripts();
-    AddAscensionArenaQueueScripts();
+    if (!vanilla) AddAscensionArenaQueueScripts();
     AddCoAPlayerTicketScripts();
-    AddCoARotationAssistScripts();
+    if (!vanilla) AddCoARotationAssistScripts();
     AddCoAPortableSessionScripts();
     AddAscensionWildcardScripts();
     AddSC_AscensionWildcardRecuperate();
@@ -774,12 +778,12 @@ void AddCoAScripts()
     AddSC_AscensionPvePower();
     AddSC_AscensionItemPower();
     AddSC_AscensionMountSpeed();
-    AddSC_AscensionGlory();
+    if (!vanilla) AddSC_AscensionGlory();
     AddSC_AscensionDifficultyRelease();
     AddSC_AscensionLfgRandomDungeonRequirements();
     AddSC_AscensionQuestLog();
-    AddSC_AscensionRestingBuff();
-    AddSC_AscensionPvpTrinketHealth();
+    if (!vanilla) AddSC_AscensionRestingBuff();
+    if (!vanilla) AddSC_AscensionPvpTrinketHealth();
     AddSC_AscensionClosestResurrection();
     AddSC_AscensionAdventureModeRandomAggro();
     AddSC_AscensionDungeonRelease();
@@ -818,10 +822,10 @@ void AddCoAScripts()
     AddSC_AscensionSummonAvoidance();
     AddSC_AscensionSummonDamage();
     AddSC_AscensionKeepersScrollZoneBuff();
-    AddSC_AscensionWelcomeWarchest();
-    AddSC_AscensionClassBundleStore();
-    AddSC_AscensionHeirloomWeaponStore();
-    AddSC_AscensionLfgObjective();
-    AddSC_AscensionBushcraft();
-    AddSC_AscensionVoidPortal();
+    if (!vanilla) AddSC_AscensionWelcomeWarchest();
+    if (!vanilla) AddSC_AscensionClassBundleStore();
+    if (!vanilla) AddSC_AscensionHeirloomWeaponStore();
+    if (!vanilla) AddSC_AscensionLfgObjective();
+    if (!vanilla) AddSC_AscensionBushcraft();
+    if (!vanilla) AddSC_AscensionVoidPortal();
 }
