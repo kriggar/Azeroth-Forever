@@ -193,10 +193,14 @@ function M.Install()
     local f=GameMenuFrame
     M.options=makeButton(f,"Options",options)
     M.edit=makeButton(f,"Edit Mode",editMode)
-    local heading=f:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-    heading:SetPoint("TOP",f,"TOP",0,-25)
-    heading:SetText("GAME MENU")
-    M.heading=heading
+    -- The full ForeverUI port already draws its own ornate Game Menu
+    -- heading. Do not draw another label on top of that existing title.
+    if not (_G.ForeverUI and ForeverUI.GameMenu and ForeverUI.GameMenu.header) then
+        local heading=f:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
+        heading:SetPoint("TOP",f,"TOP",0,-25)
+        heading:SetText("GAME MENU")
+        M.heading=heading
+    end
     f:HookScript("OnShow",function()
         -- The ForeverUI port and stock menu might place its buttons during
         -- OnShow. Our late-loaded native integration runs after their hook.
