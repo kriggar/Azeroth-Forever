@@ -1,7 +1,7 @@
 # Azeroth Forever native client interface installer (Windows PowerShell).
 # The UI is embedded in the *client FrameXML* via a reversible patch-Z.MPQ.
 # It is NOT loaded through Interface\AddOns\AzerothForeverUI.
-# Never edits Wow.exe/Ascension.exe, CoA game data, existing MPQs or servers.
+# Keeps a verified backup of any existing CoA patch-Z and merges onto a copy.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$ClientFolder,
@@ -39,17 +39,40 @@ if ($running) { throw 'Close the WoW client before installing or restoring the i
 
 if ($Restore) {
     if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) {
-        throw 'No Azeroth Forever native UI manifest exists. Refusing to delete unknown patch files.'
+        throw 'No Azeroth Forever native UI manifest exists. The original patch is unchanged.'
     }
     $installed = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
     if ((-not $installed.patchSha256) -or (-not (Test-Path -LiteralPath $patch -PathType Leaf))) {
-        throw 'Manifest/patch mismatch; no restore was performed.'
+        throw 'Manifest or installed MPQ missing. Nothing has been deleted.'
     }
     $current = (Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant()
     if ($current -ne $installed.patchSha256) {
-        throw 'patch-Z.MPQ has changed. Refusing to remove modified or unrelated client data.'
+        throw 'The installed patch has changed. Refusing to overwrite unrelated newer client content.'
     }
-    Remove-Item -LiteralPath $patch -Force
+    if ($installed.originalPatchBackup) {
+        if (-not (Test-Path -LiteralPath $installed.originalPatchBackup -PathType Leaf)) {
+            throw 'Cannot find the saved original CoA patch. No changes were made.'
+        }
+        $originalSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $installed.originalPatchBackup).Hash.ToLowerInvariant()
+        if ($originalSha -ne $installed.originalPatchSha256) {
+            throw 'The CoA patch backup hash does not match. No changes were made.'
+        }
+        $tempRestore = Join-Path $data ('.patch-Z-restore-' + [guid]::NewGuid().ToString('N') + '.tmp')
+        Copy-Item -LiteralPath $installed.originalPatchBackup -Destination $tempRestore
+        try {
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath $tempRestore).Hash.ToLowerInvariant() -ne $originalSha) {
+                throw 'Original patch backup failed copy verification.'
+            }
+            [System.IO.File]::Replace($tempRestore, $patch, $null, $true)
+        } finally {
+            if (Test-Path -LiteralPath $tempRestore) { Remove-Item -LiteralPath $tempRestore -Force }
+        }
+        Write-Host "Restored the original CoA patch-Z.MPQ from its checked backup."
+    } else {
+        # Version 1 installs introduced a brand new patch-Z and had no prior file.
+        Remove-Item -LiteralPath $patch -Force
+        Write-Host 'Removed the new native UI patch; no previous patch-Z was present.'
+    }
     Remove-Item -LiteralPath $manifest -Force
     if ($installed.previousAddonBackup -and
         (Test-Path -LiteralPath $installed.previousAddonBackup -PathType Container) -and
@@ -57,19 +80,24 @@ if ($Restore) {
         New-Item -ItemType Directory -Force -Path $addons | Out-Null
         Move-Item -LiteralPath $installed.previousAddonBackup -Destination $oldAddon
     }
-    Write-Host 'Removed the Azeroth Forever native interface patch and restored the previous toolbar (if present).'
-    Write-Host 'Original game executables, CoA databases and other MPQs were never changed.'
+    Write-Host 'Client UI rollback completed. Server binaries and databases were never changed.'
     return
 }
 
-if (Test-Path -LiteralPath $patch) {
-    throw "patch-Z.MPQ already exists. Refusing to replace or merge unknown client content: $patch"
+$existingPatch = Test-Path -LiteralPath $patch -PathType Leaf
+if ($existingPatch) {
+    Write-Host "Existing CoA patch-Z.MPQ detected: $patch"
+    Write-Host 'Its contents will be preserved in a separate backup and verified through MPQ readback.'
 }
 if (Test-Path -LiteralPath $manifest) {
-    throw 'A prior native UI install manifest exists but the archive is missing. Investigate before trying again.'
+    throw 'An Azeroth Forever install manifest already exists. Use Restore-Native-UI first.'
 }
+
 if (-not $FrameXMLArchive) {
     $FrameXMLArchive = Join-Path $data 'patch-B.MPQ'
+    if (-not (Test-Path -LiteralPath $FrameXMLArchive) -and $existingPatch) {
+        $FrameXMLArchive = $patch
+    }
 }
 if (-not (Test-Path -LiteralPath $FrameXMLArchive -PathType Leaf)) {
     throw "Could not find original CoA FrameXML archive: $FrameXMLArchive. Specify -FrameXMLArchive explicitly."
@@ -135,7 +163,13 @@ $destination = Join-Path $working 'patch-Z.MPQ'
 if (Test-Path $destination) { Remove-Item $destination -Force }
 if (Test-Path ($destination + '.json')) { Remove-Item ($destination + '.json') -Force }
 Write-Host 'Building the complete client-native MPQ overlay...'
-& $python -B $buildScript --upstream $sourceRoot --toc-archive $FrameXMLArchive --mpqcli $mpqExe --output $destination
+$buildArguments = @('-B', $buildScript, '--upstream', $sourceRoot,
+                    '--toc-archive', $FrameXMLArchive, '--mpqcli', $mpqExe,
+                    '--output', $destination)
+if ($existingPatch) {
+    $buildArguments += @('--merge-archive', $patch)
+}
+& $python @buildArguments
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $destination -PathType Leaf)) {
     throw 'Native UI build or MPQ readback verification failed. No client files changed.'
 }
@@ -148,36 +182,95 @@ if ($BuildOnly) {
     return
 }
 
-$backupAddon = $null
-if (Test-Path -LiteralPath $oldAddon -PathType Container) {
-    $backupBase = Join-Path $client 'AzerothForever-UI-Backups'
-    New-Item -ItemType Directory -Force -Path $backupBase | Out-Null
-    $backupAddon = Join-Path $backupBase ('AzerothForeverUI-old-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-    Move-Item -LiteralPath $oldAddon -Destination $backupAddon
+# The native full-UI payload has already passed the builder's MPQ readback.
+# We now copy the original patch outside Data and confirm its SHA256.
+$backupRoot = Join-Path $client 'AzerothForever-UI-Backups'
+$backupPatch = $null
+$originalSha = $null
+if ($existingPatch) {
+    $originalSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant()
+    $report = Get-Content -LiteralPath ($destination + '.json') -Raw | ConvertFrom-Json
+    if (-not $report.merged_existing_patch -or
+        $report.original_patch_sha256 -ne $originalSha -or
+        $report.original_members_verified -le 0) {
+        throw 'Existing CoA patch preservation was not verified. No client changes were made.'
+    }
+    New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
+    $backupPatch = Join-Path $backupRoot ('patch-Z-original-' + (Get-Date -Format 'yyyyMMdd-HHmmss') +
+        '-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '.MPQ')
+    Copy-Item -LiteralPath $patch -Destination $backupPatch -ErrorAction Stop
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $backupPatch).Hash.ToLowerInvariant() -ne $originalSha) {
+        Remove-Item -LiteralPath $backupPatch -Force
+        throw 'Existing CoA patch backup hash mismatched; refusing to install.'
+    }
+    Write-Host "Original CoA patch saved separately: $backupPatch"
 }
+$backupAddon = $null
+$swapped = $false
+$pending = Join-Path $data ('.patch-Z-azeroth-forever-' + [guid]::NewGuid().ToString('N') + '.tmp')
 try {
-    Copy-Item -LiteralPath $destination -Destination $patch -ErrorAction Stop
-    $readbackSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant()
-    if ($readbackSha -ne $sha) { throw 'Installed MPQ checksum mismatch.' }
+    # Ensure the client patch is never partially written: stage on the same
+    # volume, verify, then atomically replace the existing file.
+    Copy-Item -LiteralPath $destination -Destination $pending -ErrorAction Stop
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $pending).Hash.ToLowerInvariant() -ne $sha) {
+        throw 'Native UI patch copy failed checksum verification.'
+    }
+    if ($existingPatch) {
+        if ((Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant() -ne $originalSha) {
+            throw 'The original patch changed after backup; refusing to replace it.'
+        }
+        [System.IO.File]::Replace($pending, $patch, $null, $true)
+    } else {
+        [System.IO.File]::Move($pending, $patch)
+    }
+    $swapped = $true
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant() -ne $sha) {
+        throw 'Installed native UI patch hash mismatched.'
+    }
+    if (Test-Path -LiteralPath $oldAddon -PathType Container) {
+        New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+        $backupAddon = Join-Path $backupRoot ('AzerothForeverUI-old-' +
+            (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' +
+            [guid]::NewGuid().ToString('N').Substring(0,6))
+        Move-Item -LiteralPath $oldAddon -Destination $backupAddon
+    }
     [pscustomobject]@{
-        version = 1
+        version = 2
         sourceCommit = $srcCommit
         patchSha256 = $sha
         patchPath = $patch
+        originalPatchBackup = $backupPatch
+        originalPatchSha256 = $originalSha
         previousAddonBackup = $backupAddon
         builtFromArchive = $FrameXMLArchive
         gameExecutable = (Split-Path -Leaf $exe)
         clientTestedInGame = $false
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifest -Encoding UTF8
 } catch {
-    if (Test-Path $patch) { Remove-Item -LiteralPath $patch -Force }
-    if ($backupAddon -and (Test-Path $backupAddon) -and -not (Test-Path $oldAddon)) {
+    # If a later step failed, put the player's *original* patch back.
+    # Never delete an original MPQ as a way of fixing the installation.
+    if ($swapped -and (Test-Path -LiteralPath $patch -PathType Leaf)) {
+        if ($existingPatch -and $backupPatch -and
+            (Test-Path -LiteralPath $backupPatch -PathType Leaf)) {
+            $restorePending = Join-Path $data ('.patch-Z-emergency-' + [guid]::NewGuid().ToString('N') + '.tmp')
+            Copy-Item -LiteralPath $backupPatch -Destination $restorePending
+            if ((Get-FileHash -Algorithm SHA256 -LiteralPath $restorePending).Hash.ToLowerInvariant() -eq $originalSha) {
+                [System.IO.File]::Replace($restorePending, $patch, $null, $true)
+            } else {
+                Write-Warning "Original MPQ retained at $backupPatch; automatic restore could not be verified."
+            }
+        } elseif (-not $existingPatch) {
+            Remove-Item -LiteralPath $patch -Force
+        }
+    }
+    if ($backupAddon -and (Test-Path -LiteralPath $backupAddon) -and -not (Test-Path -LiteralPath $oldAddon)) {
         Move-Item -LiteralPath $backupAddon -Destination $oldAddon
     }
     throw
+} finally {
+    if (Test-Path -LiteralPath $pending) { Remove-Item -LiteralPath $pending -Force }
 }
-Write-Host 'Built-in full-interface MPQ installed into the CoA client.'
-Write-Host 'Nothing was installed in Interface\AddOns.'
-Write-Host 'It does not patch Ascension.exe, Wow.exe, your database, or CoA class definitions.'
-Write-Warning 'The 3.3.5 client can reject modified FrameXML. If that happens, close the game and rerun this script with -Restore.'
-Write-Host 'This patch uses a third-party modern UI port as the starting point; native CoA compatibility requires in-game testing.'
+Write-Host 'Native full-interface patch installed; CoA source archive was backed up and preserved.'
+Write-Host 'No addon or game executable was patched. CoA class and map assets remain in the archive.'
+Write-Warning 'Modified FrameXML may be rejected by your CoA executable. If needed, close the game and run Restore-Native-UI.bat.'
+Write-Host 'The new interface is experimental until tested in-game against your particular CoA client.'
