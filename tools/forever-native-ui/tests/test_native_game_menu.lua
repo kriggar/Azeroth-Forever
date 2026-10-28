@@ -5,6 +5,7 @@ local function frame(name, text, click)
     function f:GetName() return self.name end
     function f:GetText() return self.text end
     function f:SetText(v) self.text=v end
+    function f:RegisterEvent() end
     function f:SetScript(ev,fn) self.scripts[ev]=fn end
     function f:GetScript(ev) return self.scripts[ev] end
     function f:HookScript(ev,fn) self.hooks[ev]=fn end
