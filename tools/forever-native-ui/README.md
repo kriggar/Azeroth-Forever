@@ -11,8 +11,8 @@ The port covers action bars, player/target/party frames, cast bars, minimap, cha
 - This is a full client UI integration, NOT a server-side gameplay change.
 - The build deliberately excludes login/character creation GlueXML so the 21 original CoA classes are not replaced.
 - The script preserves the live FrameXML.toc from your CoA client archive and appends a native UI load sequence.
-- The output is a new Data/patch-Z.MPQ. Existing MPQs and executables remain untouched.
-- A standard 3.3.5a client verifies its built-in FrameXML integrity and might reject modified UI files. Some customized CoA clients may already support them, but that is NOT established here. The installer does not patch executables or disable signature checking.
+- The output installs into Data/patch-Z.MPQ. **If patch-Z already exists**, the tool inventories it, produces a merged copy, verifies every original CoA file, writes a SHA256-checked backup outside Data, and atomically replaces the archive. If full verification is impossible, it fails safely without changing the client. It never patches the executable or server.
+- A standard 3.3.5a client verifies its built-in FrameXML integrity and might reject modified UI files. Some customized CoA clients may already support them, but that is NOT established here. The installer does not patch executables or disable signature checking. Signed/unknown MPQs are rejected rather than rewritten.
 - Native FrameXML does not have addon SavedVariables. Currently UI positions are in-memory only. Persistent settings need a native client settings bridge.
 - This is experimental; keep a full working client backup. The installer can roll back its own verified archive.
 - No Blizzard art or game binaries are committed to this repository. Source and art are obtained from the pinned upstream by the installer on your PC.
@@ -26,7 +26,7 @@ The port covers action bars, player/target/party frames, cast bars, minimap, cha
 
     powershell -NoProfile -ExecutionPolicy Bypass -File ".\Install-NativeForeverUI.ps1" -ClientFolder "D:\path\to\your\client"
 
-5. The installer downloads pinned source, validates the MPQ tool checksum, builds and readback-verifies a client-native archive, and copies it to Data/patch-Z.MPQ. It safely moves aside the old broken toolbar addon if found.
+5. The installer downloads pinned source, validates the MPQ tool checksum, builds and readback-verifies a client-native archive, and copies it to Data/patch-Z.MPQ. It safely moves aside the old broken toolbar addon if found. If patch-Z already exists it automatically backs it up under AzerothForever-UI-Backups, merges the native UI files into a verified copy, and preserves all original CoA entries. Do not delete patch-Z yourself.
 6. If your FrameXML.toc is not in Data/patch-B.MPQ, provide the real MPQ using -FrameXMLArchive "D:\path\to\client\Data\patch-XX.MPQ". The installer refuses to guess.
 7. Launch CoA and check class spellbook, talents, resources, unit frames, main action bars, system bar, achievements, and quests.
 
@@ -38,7 +38,7 @@ Close the client and use:
 
     powershell -NoProfile -ExecutionPolicy Bypass -File ".\Install-NativeForeverUI.ps1" -ClientFolder "D:\path\to\your\client" -Restore
 
-Restore only removes the archive if its SHA256 matches the install manifest, and restores the old preview addon if the installer had moved it. It does not modify the installed CoA server, player database or exe.
+Restore verifies the installed archive SHA256. When an original patch-Z existed, it restores the original from its SHA-verified backup; when none existed, it removes only the new patch. The previous preview addon is also restored if the installer had moved it. It does not modify the installed CoA server, player database or exe.
 
 ## How this works
 
