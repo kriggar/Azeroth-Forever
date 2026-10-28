@@ -18,6 +18,46 @@ GetModuleSourceList(MODULES_MODULE_LIST)
 get_property(COA_SQL_DIRECTORY GLOBAL PROPERTY COA_SQL_DIRECTORY)
 list(REMOVE_ITEM MODULES_MODULE_LIST ${COA_SQL_DIRECTORY} mod-ascension-compat)
 
+# Azeroth Forever Classic-style baseline: exclude optional gameplay modules.
+# CoA class code is built independently under src/server/coa.
+# This is build-time filtering only; existing world database spawns and
+# packaged client patches need a separate, reversible cleanup.
+option(AZEROTH_FOREVER_VANILLA "Build CoA classes without optional custom gameplay modules" ON)
+if(AZEROTH_FOREVER_VANILLA)
+  list(REMOVE_ITEM MODULES_MODULE_LIST
+    mod-ascension
+    mod-book-of-artisans
+    mod-coa-challenges
+    mod-worldforged-pickups
+    mod-teleport-actionbar
+    mod-manastorm-endless
+    mod-portablemail
+    mod-craftsmans-codex
+    mod-spellbook
+    mod-destiny-weaver
+    mod-treasure-keeper
+    mod-coa-titan-scrolls
+    mod-path-to-ascension
+    mod-war-games
+    mod-hero-call-board
+    mod-item-recovery
+    mod-battlehorn
+    mod-scrolls-of-retreat
+    mod-coa-prestige
+    mod-coa-lottery
+    mod-woodworking
+    mod-portable-sawmill
+    mod-npc-enchanter
+    mod-ah-bot-plus
+    mod-coa-legendary-items
+    mod-ethereal-bazaar
+    mod-coa-mythic-plus
+    mod-coa-change-potions
+    mod-cfbg
+  )
+  message(STATUS "Azeroth Forever: optional custom gameplay modules filtered for vanilla baseline")
+endif()
+
 # Make the native install offset available in this scope
 GetInstallOffset(INSTALL_OFFSET)
 
