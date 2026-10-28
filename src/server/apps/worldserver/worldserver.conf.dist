@@ -2575,10 +2575,13 @@ MaxGroupXPDistance = 74
 #                     4        - (Rate.XP.Explore)
 #                     1        - (Rate.XP.Pet)
 
+# Azeroth Forever vanilla XP: 1x kills, quests, exploration; classic elite 2x.
+# No character experience from gathering and crafting professions.
+#
 #    Rate.XP.Global
 #        Multiplies all player XP sources using OnPlayerGiveXP before module modifiers, including dynamic XP.
 #        Default 0.9295, the rate of the realm captured in PR #4128.
-Rate.XP.Global = 0.9295
+Rate.XP.Global = 1
 
 #    Rate.XP.Profession
 #        Provisional local formula, not verified live Ascension XP parity:
@@ -2593,8 +2596,8 @@ Rate.XP.Global = 0.9295
 #        those awards also use Global and dynamic XP. Woodcutting/woodworking have no core action path here.
 #        Smelting is a Mining craft and uses Rate.XP.Profession.Smelting instead of the Mining rate, so
 #        ore pays once when mined; 0 (default) gives smelting no XP.
-Rate.XP.Profession = 0.2
-Rate.XP.Profession.BaseFraction = 0.02
+Rate.XP.Profession = 0
+Rate.XP.Profession.BaseFraction = 0
 Rate.XP.Profession.Gray = 0
 Rate.XP.Profession.Green = 0.95
 Rate.XP.Profession.Yellow = 1
@@ -2617,16 +2620,16 @@ Rate.XP.Profession.Tailoring = 1.66
 Rate.XP.Profession.Lockpicking = 0
 Rate.XP.Profession.Inscription = 2.88
 
-Rate.XP.Kill            = 1.0909091
-Rate.XP.Kill.TBC        = 1.0909091
-Rate.XP.Kill.WotLK      = 0.90909094
-Rate.XP.Elite           = 1.44
-Rate.XP.DungeonElite    = 2.175
-Rate.XP.Quest           = 1.26
-Rate.XP.Quest.TBC       = 1.26
-Rate.XP.Quest.WotLK     = 1.05
+Rate.XP.Kill            = 1
+Rate.XP.Kill.TBC        = 1
+Rate.XP.Kill.WotLK      = 1
+Rate.XP.Elite           = 2
+Rate.XP.DungeonElite    = 2
+Rate.XP.Quest           = 1
+Rate.XP.Quest.TBC       = 1
+Rate.XP.Quest.WotLK     = 1
 Rate.XP.Quest.DF        = 1
-Rate.XP.Explore         = 4
+Rate.XP.Explore         = 1
 Rate.XP.Pet             = 1
 
 #
