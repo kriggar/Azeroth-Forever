@@ -39,7 +39,7 @@ jobs:
           done
           python3 -m unittest discover -s tools/forever-native-ui/tests -p "test_*.py" -v
           lua5.1 tools/forever-native-ui/tests/test_coa_talent_bridge.lua
-          lua5.1 tools/forever-native-ui/tests/test_coa_picker.lua
+          lua5.1 tools/forever-native-ui/tests/test_coa_tree_home.lua
       - name: Verify complete upstream full-UI source Lua syntax
         run: |
           while IFS= read -r file; do
@@ -196,7 +196,7 @@ jobs:
               $loader -notmatch 'AzerothForeverNativeBegin.lua' -or
               $loader -notmatch 'AzerothForeverNativeSettings.lua' -or
               $loader -notmatch 'AzerothForeverNativeTransmog.lua' -or
-              $loader -notmatch 'AzerothForeverCoASpecPicker.lua') {
+              $loader -notmatch 'AzerothForeverCoATreeHome.lua') {
             throw 'Stock 3.3.5 XML loader, CoA class loader or native UI loader is missing'
           }
           $afterBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
@@ -218,9 +218,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Upgraded archive cannot be extracted' }
           $upgradedToc = Get-Content (Join-Path $upgradedExtracted 'Interface\FrameXML\FrameXML.toc') -Raw
           if ([regex]::Matches($upgradedToc, 'AzerothForeverCoASpecPicker\.lua').Count -ne 1) {
-            throw 'Updated CoA spec picker is absent or duplicated in FrameXML.toc'
+            throw 'Updated direct CoA talent tree view is absent or duplicated in FrameXML.toc'
           }
-          if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverCoASpecPicker.lua'))) {
+          if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverCoATreeHome.lua'))) {
             throw 'Spec picker script did not make it into the upgraded client archive'
           }
           if ((Get-Content (Join-Path $upgradedExtracted 'CoA\Classes\CustomClass.dat') -Raw) -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
