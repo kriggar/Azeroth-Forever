@@ -39,6 +39,7 @@ jobs:
           done
           python3 -m unittest discover -s tools/forever-native-ui/tests -p "test_*.py" -v
           lua5.1 tools/forever-native-ui/tests/test_coa_talent_bridge.lua
+          lua5.1 tools/forever-native-ui/tests/test_coa_picker.lua
       - name: Verify complete upstream full-UI source Lua syntax
         run: |
           while IFS= read -r file; do
