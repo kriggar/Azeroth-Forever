@@ -274,7 +274,7 @@ CoA.RealmType = "live"
 #        Default:     "coa"
 #
 
-CoA.ClassModel = "coa wcr"
+CoA.ClassModel = "coa"
 
 #
 #    CoA.GameModeMask
