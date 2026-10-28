@@ -49,9 +49,12 @@
     "game_menu": {
       "source": [
         "GameMenu.lua",
-        "BottomBar.lua"
+        "BottomBar.lua",
+        "AzerothForeverNativeGameMenu.lua"
       ],
-      "status": "modern_port_loaded"
+      "status": "native_extension",
+      "behavior": "Escape opens the existing client Game Menu with a modern consolidated Options button, native Edit Mode when available, original secure Logout/Exit/Return/Macros/Key Bindings; hides identified Ascension-only Trial menu controls without deleting combat actions.",
+      "validation": "CI Lua syntax, native UI MPQ and mock menu actions. Exact additional CoA Trial button name and in-game rendering remain unverified."
     },
     "bags": {
       "source": [
@@ -84,9 +87,9 @@
         "AzerothForeverCoATreeHome.lua"
       ],
       "status": "native_coa_adapter",
-      "behavior": "Opening Talents shows the real CoATalentFrame.TreeView.ClassTree and SpecTree, with connected prerequisite nodes populated via the CoA client DBC. A compact specialization tab row triggers the original CoASpecChoiceMixin.OnSelected handler. No four-card chooser, no fake node data, no WotLK GetTalentInfo logic. Server still validates Save/Undo, points, rank prerequisites.",
-      "visual_reference": "World of Warcraft: Forever (2026) two connected talent trees (class and specialization), modern art, visible dependency branches and nodes; CoA node data unchanged.",
-      "validation": "Lua and packaging checks are only static/mock; exact WoW Forever UI parity must be verified in the real CoA client."
+      "behavior": "CoA's real connected Class and Spec talent trees are the FIRST content shown when Talents opens. The original four-card chooser and replacement side-rail picker are not loaded. Compact original-specialization tabs appear at the top. All CoA node data, ranks, prerequisites, Save/Undo, class/spell mechanics remain owned by C_CharacterAdvancement.",
+      "visual_reference": "Approved player mockup of three-classic vertical connected trees: dark atmospheric tree panels, narrow outlined icons, branch lines/arrows, capstone ranks, header totals and bottom Apply/Reset. Adapted to CoA's actual TWO class and specialization trees; no fake third tree.",
+      "validation": "Source, Lua behavior, native packaging and Windows installer tests; final visual parity in live 3.3.5-derived CoA client not yet proven."
     },
     "quest_log": {
       "source": [
