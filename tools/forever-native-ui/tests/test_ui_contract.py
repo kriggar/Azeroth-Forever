@@ -92,10 +92,10 @@ class ForeverUIContractTests(unittest.TestCase):
         self.assertEqual(
             self.panels["transmog"]["status"], "native_extension_backend_pending")
         self.assertEqual(
-            self.panels["talent_panel"]["status"], "native_coa_adapter")
+            self.panels["talent_panel"]["status"], "native_coa_adapter_unverified_in_game")
         self.assertEqual(
-            self.panels["settings"]["status"], "native_extension")
-        self.assertIn("not pixel-perfect", self.manifest["validation"])
+            self.panels["settings"]["status"], "native_extension_unverified_in_game")
+        self.assertIn("pixel-perfect", self.manifest["validation"])
         self.assertIn("AzerothForeverNativeOnboarding.lua",self.builder)
         self.assertIn("UNSHIPPED_PROTOTYPES",self.builder)
         self.assertIn("AzerothForeverCoATalentVisuals.lua",
