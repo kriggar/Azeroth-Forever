@@ -31,7 +31,10 @@ def main():
                "AzerothForever.VanillaMode"]
     for key in keep_on:
         check(conf.get(key) == "1", f"Required CoA compatibility setting {key} must be 1")
-    check("coa" in conf["CoA.ClassModel"].lower(), "CoA classes must remain enabled")
+    check(conf["CoA.ClassModel"].strip().strip(chr(34)).lower() == "coa",
+          "Only Conquest of Azeroth classes should be exposed")
+    check(conf.get("CoA.GameModeMask") == "0",
+          "Alternate Ascension game modes must be disabled")
     for key in [
         "CoA.RotationAssist.Enable", "CoA.CreatureScaling.Enable",
         "CoA.MonsterResistance.Enable", "CoA.QuestLevelScaling", "CoA.ItemScaling",
