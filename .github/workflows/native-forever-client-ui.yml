@@ -47,7 +47,7 @@ jobs:
           lua5.1 tools/forever-native-ui/tests/test_coa_talent_bridge.lua
           lua5.1 tools/forever-native-ui/tests/test_coa_tree_home.lua
           lua5.1 tools/forever-native-ui/tests/test_native_game_menu.lua
-          lua5.1 tools/forever-native-ui/tests/test_native_onboarding.lua
+          lua5.1 tools/forever-native-ui/tests/test_coa_talent_visuals.lua
       - name: Verify complete upstream full-UI source Lua syntax
         run: |
           while IFS= read -r file; do
@@ -108,6 +108,12 @@ jobs:
           grep -q 'AscensionClassBridge.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           grep -q 'AzerothForeverNativeBegin.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           grep -q 'AzerothForeverNativeSettings.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverCoATalentVisuals.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverNativeMicroMenu.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          if grep -q 'AzerothForeverNativeOnboarding.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"; then
+            echo 'Error: fake in-world first-login prototype must not ship'
+            exit 1
+          fi
           grep -q 'AzerothForeverNativeTransmog.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           grep -q 'AzerothForeverCoATalents.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           if grep -q -i 'AzerothForeverNative\\Talents.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"; then
@@ -205,7 +211,8 @@ jobs:
               $loader -notmatch 'AzerothForeverNativeSettings.lua' -or
               $loader -notmatch 'AzerothForeverNativeTransmog.lua' -or
               $loader -notmatch 'AzerothForeverCoATreeHome.lua' -or
-              $loader -notmatch 'AzerothForeverNativeOnboarding.lua') {
+              $loader -notmatch 'AzerothForeverCoATalentVisuals.lua' -or
+              $loader -notmatch 'AzerothForeverNativeMicroMenu.lua') {
             throw 'Stock 3.3.5 XML loader, CoA class loader or native UI loader is missing'
           }
           $afterBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
@@ -232,8 +239,13 @@ jobs:
           if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverCoATreeHome.lua'))) {
             throw 'Direct CoA talent trees script did not make it into the upgraded client archive'
           }
-          if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverNativeOnboarding.lua'))) {
-            throw 'First-login native workflow preview did not make it into the upgraded client'
+          foreach ($file in @('AzerothForeverCoATalentVisuals.lua','AzerothForeverNativeMicroMenu.lua')) {
+            if (-not (Test-Path (Join-Path $upgradedExtracted ('Interface\FrameXML\' + $file)))) {
+              throw "Required real native UI integration missing from upgraded client: $file"
+            }
+          }
+          if ($upgradedToc -match 'AzerothForeverNativeOnboarding.lua') {
+            throw 'Unimplemented first-login prototype was erroneously installed in-world'
           }
           if ((Get-Content (Join-Path $upgradedExtracted 'CoA\Classes\CustomClass.dat') -Raw) -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
             throw 'Upgrading damaged the original CoA class content'
