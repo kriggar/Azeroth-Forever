@@ -56,7 +56,7 @@ function R.HasOriginalHandlers(root)
     if not bottom or not tree.ClassTree or not tree.SpecTree then return false end
     if not bottom.SaveChanges or not bottom.UndoButton or
        not bottom.ChangeSpec or not bottom.Search then return false end
-    if type(_G.C_CharacterAdvancement) ~= "table" then return false end
+    if not _G.C_CharacterAdvancement then return false end
     if type(C_CharacterAdvancement.GetActiveChrSpec) ~= "function" or
        type(C_CharacterAdvancement.CanApplyPendingBuild) ~= "function" then return false end
     return true
@@ -121,6 +121,16 @@ function R.Style()
     end
 
     if bar.Texture then bar.Texture:SetAlpha(0.25) end
+    -- Restyle the *original* CoA buttons using modern client art.
+    -- No OnClick handlers are replaced: purchase validation stays on the
+    -- live C_CharacterAdvancement API and existing server.
+    local tpl = _G.ForeverUI and ForeverUI.Templates
+    if tpl and type(tpl.ThreeSliceButton) == "function" then
+        for _, btn in ipairs({ bar.SaveChanges, bar.ChangeSpec }) do
+            pcall(tpl.ThreeSliceButton, btn, "128-redbutton",
+                  { GameFontHighlightLarge, GameFontHighlightLarge, GameFontDisableLarge })
+        end
+    end
     local bottomArt = bar:CreateTexture(nil, "BACKGROUND")
     bottomArt:SetAllPoints(bar)
     bottomArt:SetTexture("Interface\\Buttons\\WHITE8X8")
@@ -146,7 +156,17 @@ function R.Style()
     -- CoA has specializations; the spec-selection view remains the original
     -- ClassInfo-driven view, presented in the same modern outer shell.
     if panel.SpecView.Background then
-        panel.SpecView.Background:SetAlpha(0.22)
+        panel.SpecView.Background:SetAlpha(0.48)
+    end
+    -- Keep the authentic CoA specialization chooser and its class-specific
+    -- artwork, with the modern dark stone frame around its selectable cards.
+    local specDecor = CreateFrame("Frame", "AzerothForeverCoASpecBorder", panel.SpecView)
+    specDecor:SetAllPoints(panel.SpecView)
+    specDecor:SetFrameLevel(panel.SpecView:GetFrameLevel() + 2)
+    specDecor:EnableMouse(false)
+    if _G.ForeverUI and type(ForeverUI.CreateNineSlice) == "function" then
+        pcall(ForeverUI.CreateNineSlice, specDecor, "talents-inner-frame-c60",
+              24, { 0, 0, 0, 0 }, "OVERLAY")
     end
 
     R.panel = panel
