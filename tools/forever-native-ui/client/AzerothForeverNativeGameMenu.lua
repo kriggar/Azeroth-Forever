@@ -56,6 +56,14 @@ local function makeButton(parent, text, action)
     local b=CreateFrame("Button",nil,parent,"UIPanelButtonTemplate")
     b:SetWidth(222) b:SetHeight(30)
     b:SetText(text)
+    -- Use the same 2026-style atlas-button treatment already used by the
+    -- GPL ForeverUI port for the other Escape-menu actions. Its up/hover/
+    -- disabled states match those native buttons rather than a 3.3.5 default.
+    local templates=_G.ForeverUI and ForeverUI.Templates
+    if templates and type(templates.ThreeSliceButton)=="function" then
+        pcall(templates.ThreeSliceButton,b,"128-redbutton",
+              {GameFontHighlightLarge,GameFontHighlightLarge,GameFontDisableLarge})
+    end
     b:SetScript("OnClick",action)
     return b
 end
