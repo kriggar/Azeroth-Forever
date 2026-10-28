@@ -95,4 +95,23 @@ assert(tree.ClassTree.name=="original-coa-class-tree")
 assert(tree.SpecTree.name=="original-coa-spec-tree")
 assert(tree.BottomBar.SaveChanges.disabled,
        "while no spec is confirmed the client may preview but not fake a talent save")
-print("PASS: Opening Talents shows original CoA connected trees; specs use original selection")
+-- Simulated data-shape matrix, not actual class IDs/skill DB validation:
+-- the adapter must not assume Warrior/Mage or exactly three specializations.
+for classId=12,32 do
+    UnitClass=function() return "CoA Test", "COA_"..classId end
+    for specCount=1,7 do
+        C_ClassInfo.GetAllSpecs=function(cls)
+            assert(cls=="COA_"..classId)
+            local arr={}
+            for i=1,specCount do arr[i]="Spec"..i end
+            return arr
+        end
+        C_ClassInfo.GetSpecInfo=function(cls,key)
+            return {ID=1000+classId*10+tonumber(key:match("%d+")),Name=key}
+        end
+        local actual=R.GetSpecs()
+        assert(#actual==specCount,
+            "classId "..classId.." with "..specCount.." specializations is not supported")
+    end
+end
+print("PASS: Direct CoA talent trees, original selections and 147 class/spec shape variants")
