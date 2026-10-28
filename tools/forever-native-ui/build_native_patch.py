@@ -63,6 +63,37 @@ def read_upstream_toc(folder):
         raise ValueError("Incomplete full-interface source: refuse toolbar-only package")
     return result
 
+def validate_framexml_toc(original, origin="the client archive"):
+    """Validate a real WotLK 3.3.5 FrameXML loader, not its Lua include.
+
+    Stock 3.3.5's FrameXML.toc lists UIParent.xml; UIParent.lua is loaded
+    by that XML file. Some customized clients list the .lua directly.
+    Preserve the original bytes and ordering in both cases.
+    """
+    if not original or len(original) > 2_000_000 or b"\x00" in original:
+        raise ValueError("Invalid, empty or unsupported FrameXML.toc from " + str(origin))
+    try:
+        content = original.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        raise ValueError("Cannot decode the CoA FrameXML.toc from " + str(origin)) from error
+    lines = []
+    for raw in content.splitlines():
+        line = raw.strip()
+        if line.startswith("#") or not line:
+            continue
+        # Accept the standard 3.3.5 UIParent.xml and direct Lua CoA variants,
+        # not a filename mentioned merely in a comment.
+        line = line.replace("\\", "/").removeprefix("./")
+        lines.append(line.lower())
+    valid = {"uiparent.xml", "uiparent.lua",
+             "framexml/uiparent.xml", "framexml/uiparent.lua",
+             "interface/framexml/uiparent.xml", "interface/framexml/uiparent.lua"}
+    if not any(line in valid for line in lines):
+        raise ValueError("Unrecognized CoA FrameXML.toc from {}: "
+                         "expected UIParent.xml (stock 3.3.5) or UIParent.lua "
+                         "(customized client), as a real loader entry.".format(origin))
+    return content
+
 def extend_framexml(original, entries):
     # Keep CoA's *existing* FrameXML.toc and its load order intact.
     if original.startswith(b"\xef\xbb\xbf"):
@@ -73,9 +104,8 @@ def extend_framexml(original, entries):
         bom = b""
     if "AzerothForeverNativeBegin.lua" in text:
         raise ValueError("Already native-patched FrameXML.toc; restore the source archive first")
+    validate_framexml_toc(original)
     newline = "\r\n" if "\r\n" in text else "\n"
-    if not re.search(r"(?im)^\s*UIParent\.lua\s*$", text):
-        raise ValueError("Unrecognized CoA FrameXML.toc (UIParent.lua not found)")
     if not text.endswith(("\r", "\n")):
         text += newline
     text += newline + "# Azeroth Forever - native full UI (not an AddOn)" + newline
@@ -104,8 +134,7 @@ def extract_toc(mpqcli, archive, directory):
     if not toc:
         raise RuntimeError("Effective FrameXML.toc is absent in archive: " + str(archive))
     content = toc.read_bytes()
-    if b"UIParent.lua" not in content:
-        raise ValueError("Unrecognized CoA FrameXML.toc from " + str(archive))
+    validate_framexml_toc(content, archive)
     return content
 
 
