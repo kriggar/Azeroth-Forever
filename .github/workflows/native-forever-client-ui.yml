@@ -38,6 +38,7 @@ jobs:
             luac5.1 -p "$file"
           done
           python3 -m unittest discover -s tools/forever-native-ui/tests -p "test_*.py" -v
+          lua5.1 tools/forever-native-ui/tests/test_coa_talent_bridge.lua
       - name: Verify complete upstream full-UI source Lua syntax
         run: |
           while IFS= read -r file; do
@@ -99,6 +100,11 @@ jobs:
           grep -q 'AzerothForeverNativeBegin.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           grep -q 'AzerothForeverNativeSettings.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
           grep -q 'AzerothForeverNativeTransmog.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          grep -q 'AzerothForeverCoATalents.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"
+          if grep -q -i 'AzerothForeverNative\\Talents.lua' "$RUNNER_TEMP/ui/merged-content/Interface/FrameXML/FrameXML.toc"; then
+            echo 'BUG: Stock WotLK talents are being loaded over CoA class talents'
+            exit 1
+          fi
       - name: Publish Windows native UI installer source only
         uses: actions/upload-artifact@v4
         with:
