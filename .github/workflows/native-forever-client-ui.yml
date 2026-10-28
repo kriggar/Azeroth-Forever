@@ -43,6 +43,15 @@ jobs:
             case "$file" in ""|\#*) continue ;; esac
             luac5.1 -p "ui-upstream/data/addon/ForeverUI/$file"
           done < ui-upstream/data/addon/ForeverUI/ForeverUI.toc
+      - name: Parse PowerShell one-click installer scripts
+        shell: pwsh
+        run: |
+          Get-ChildItem tools/forever-native-ui -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw "PowerShell syntax error in $($_.Name): $($errors[0])" }
+          }
       - name: Download and verify open-source MPQ archive CLI
         run: |
           curl --fail --location --retry 3 \
