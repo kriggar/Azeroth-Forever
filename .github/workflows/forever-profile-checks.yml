@@ -1,4 +1,4 @@
-name: Validate Azeroth Forever profile and UI syntax
+name: Validate CoA gameplay profile and legacy UI source
 
 on:
   push:
@@ -26,17 +26,15 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.1
-      - name: Parse WoW 3.3.5-compatible UI addon
+      - name: Check obsolete preview source for syntax regression
         run: luac5.1 -p tools/forever-ui/AzerothForeverUI/AzerothForeverUI.lua
       - name: Verify CoA profile and cleanup guards
         run: python3 tools/forever-ui/tests/validate_profile.py
-      - name: Publish tested preview addon and targeted world cleanup tools
+      - name: Publish world database cleanup scripts only (old toolbar is retired)
         uses: actions/upload-artifact@v4
         with:
-          name: Azeroth-Forever-UI-WorldCleanup-PREVIEW
+          name: Azeroth-Forever-WORLD-Cleanup-ONLY
           path: |
-            tools/forever-ui/Install-ForeverUI.ps1
-            tools/forever-ui/AzerothForeverUI/
             tools/vanilla-restoration/
             WOW_FOREVER_IMPLEMENTATION.md
           if-no-files-found: error
