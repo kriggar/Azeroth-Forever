@@ -1,0 +1,218 @@
+{
+  "name": "Azeroth Forever — compact native Escape menu and alignment patch",
+  "implementation": "Client FrameXML/MPQ; no separate AzerothForeverUI addon",
+  "reference_date": "2026-10-28",
+  "design_sources": [
+    "User-supplied Conquest of Azeroth Talent Interface image — authoritative for talents visuals",
+    "https://worldofwarcraft.blizzard.com/en-us/forever/",
+    "https://www.wowhead.com/forever/guide/ui/ui-hud-edit-mode-guide",
+    "https://www.method.gg/wow-forever/understanding-wow-forevers-ui"
+  ],
+  "behavior_policy": "Preserve all 21 CoA classes, their class and specialization talent trees, spell learning, required trainers, maps and quests. Client presentation may change; data/server protocols may not be replaced by stock WotLK talent logic.",
+  "panels": {
+    "action_bars": {
+      "source": [
+        "ActionBar.lua",
+        "MultiBars.lua",
+        "BottomBar.lua",
+        "StatusBars.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "player_frames": {
+      "source": [
+        "PlayerFrame.lua",
+        "PlayerFrameExtras.lua",
+        "TargetFrame.lua",
+        "PartyFrame.lua",
+        "RaidFrame.lua",
+        "CastBar.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "minimap": {
+      "source": [
+        "Minimap.lua",
+        "MinimapQuests.lua",
+        "ObjectiveTracker.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "chat": {
+      "source": [
+        "Chat.lua",
+        "ChatConfig.lua",
+        "Buffs.lua",
+        "Tooltips.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "game_menu": {
+      "source": [
+        "GameMenu.lua",
+        "BottomBar.lua",
+        "AzerothForeverNativeGameMenu.lua",
+        "AzerothForeverNativeMicroMenu.lua"
+      ],
+      "status": "native_esc_menu_source_tested_game_unverified",
+      "behavior": "Single-owner ForeverUI-styled 200x33 Game Menu: Options, Edit Mode, native Macros, native AddOns, native Support, Log Out, Exit Game and Return to Game. All secure original clicks preserved. Legacy buttons and Trial UI suppressed only in menu surfaces. No fake Shop actions.",
+      "validation": "Native menu Lua mock checks and MPQ staging contract; no Windows-client screenshot / live validation yet."
+    },
+    "bags": {
+      "source": [
+        "Bags.lua",
+        "Bank.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "character_sheet": {
+      "source": [
+        "CharacterFrame.lua",
+        "EquipmentManager.lua",
+        "ReputationTab.lua",
+        "SkillsTab.lua",
+        "StatisticsTab.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "spellbook": {
+      "source": [
+        "SpellBook.lua",
+        "SpellBookSearch.lua",
+        "ProfessionsBook.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "talent_panel": {
+      "source": [],
+      "status": "original_coa_client_untouched",
+      "behavior": "Original Conquest of Azeroth client talent window is preserved as-is. No talent override scripts are executed by this Esc patch.",
+      "visual_reference": "USER APPROVED: Conquest of Azeroth Talent Interface collage with Moon Priest, Sentinel, Warden, Moon Guard cards and per-spec dual-column talents (NOT classic three-column Arms/Fury/Protection; NOT tree-first direct entry). Black/gold and spec-colored illustrated tree panels.",
+      "validation": "Not part of this release; no in-game talent changes are claimed."
+    },
+    "quest_log": {
+      "source": [
+        "QuestLog.lua",
+        "ObjectiveTracker.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "world_map": {
+      "source": [
+        "WorldMap.lua",
+        "WorldMapInstances.lua",
+        "WorldMapZoom.lua",
+        "ZoneMap.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "achievements": {
+      "source": [
+        "Achievements.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "settings": {
+      "source": [
+        "Settings.lua",
+        "AzerothForeverNativeSettings.lua"
+      ],
+      "status": "native_extension_unverified_in_game",
+      "behavior": "Compact UI scale automatically replaces previous 82% or 100% layouts with 76% on login or when useUiScale is off; lower manual values are preserved. Manual /afui scale 0.76 remains available."
+    },
+    "ui_edit_mode": {
+      "source": [
+        "CustomizeUI.lua",
+        "Layout.lua"
+      ],
+      "status": "modern_port_loaded",
+      "behavior": "Still lacks complete native persistence without SavedVariables; requires client settings bridge"
+    },
+    "professions": {
+      "source": [
+        "ProfessionsBook.lua",
+        "TradeSkill.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "guild_social": {
+      "source": [
+        "GuildFrame.lua",
+        "GuildRoster.lua",
+        "Social.lua",
+        "SocialRaid.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "group_finder": {
+      "source": [
+        "GroupFinder.lua",
+        "GroupFinderRaid.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "trade_auction_mail": {
+      "source": [
+        "Trade.lua",
+        "AuctionHouse.lua",
+        "Mail.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "npc_dialogs": {
+      "source": [
+        "NpcDialog.lua",
+        "Merchant.lua",
+        "Trainer.lua",
+        "Taxi.lua"
+      ],
+      "status": "modern_port_loaded"
+    },
+    "inspect": {
+      "source": [
+        "Inspect.lua"
+      ],
+      "status": "modern_port_loaded",
+      "behavior": "Visual panel ported; native inspect-talents must use CoA advancement rather than unavailable WotLK-only tree"
+    },
+    "transmog": {
+      "source": [
+        "AzerothForeverNativeTransmog.lua"
+      ],
+      "status": "native_extension_backend_pending",
+      "behavior": "NPC-operated native appearance UI. Requires separate server-side appearance service before persisting; not yet exact art parity"
+    },
+    "gamepad": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Controller focus, action bar settings and prompts require client input-engine extensions"
+    },
+    "legacy_progression": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever Legacy points/challenges need server/DB/protocol/UI; not an old vanity system"
+    },
+    "camping": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever Camping needs server/DB/quest crafting and dedicated UI"
+    },
+    "cooldown_manager": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever built-in cooldown manager and click-casting require modern client compatibility"
+    },
+    "appearance_preset": {
+      "source": [],
+      "status": "not_implemented",
+      "behavior": "Forever HD/SD model graphics options require client renderer and assets"
+    }
+  },
+  "validation": "Python unit tests and Lua 5.4 mock syntax/interaction tests. MPQ build requires mpqcli and compatible baseline. No in-game screenshot or full parity claim.",
+  "onboarding": {
+    "status": "not_implemented",
+    "target": "Actual pre-character-creation GlueXML: choose ruleset, Classic/Enhanced preset, faction/race/21 CoA classes, appearance/name and social contract. Real server-side ruleset enforcement required.",
+    "reason": "In-world FrameXML /afstart prototype was misleading and is excluded from current playable client patch. Cannot function as Blizzard's login screen."
+  },
+  "release_scope": "Esc game menu, trial button suppression, bottom micro-menu alignment, UI scale, and duplicate search cleanup. Talent presentation is intentionally untouched."
+}
