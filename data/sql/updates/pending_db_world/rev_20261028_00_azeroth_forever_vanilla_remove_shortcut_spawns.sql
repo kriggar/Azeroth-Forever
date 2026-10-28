@@ -38,12 +38,9 @@ DELETE FROM `gameobject` WHERE `id` = 239828;
 -- quest objects and all CoA class-chain GOs alone, regardless of their map.
 -- Keep item/loot definitions and character ledgers intact for a reversible rollback.
 DELETE g FROM `gameobject` AS g
-JOIN `gameobject_template` AS t ON t.`entry` = g.`id`
-WHERE t.`ScriptName` = 'worldforged_pickup'
-  AND (g.`ScriptName` = 'worldforged_pickup'
-    OR g.`guid` BETWEEN 6900001 AND 6999999
-    OR g.`Comment` LIKE 'AscensionWorldforged%'
-    OR g.`Comment` LIKE 'Worldforged%');
+LEFT JOIN `gameobject_template` AS t ON t.`entry` = g.`id`
+WHERE g.`ScriptName` = 'worldforged_pickup'
+   OR t.`ScriptName` = 'worldforged_pickup';
 
 -- Optional extra world fixtures, not CoA class trainers or their quest props.
 -- Hero's Call / Warchief's Command Board (mod-hero-call-board).
