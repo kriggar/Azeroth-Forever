@@ -131,17 +131,19 @@ function M.Refresh()
     M.HideTrialControls()
     style(frame)
 
-    local rows={
-        M.options,
-        M.edit,
-        secureNative("GameMenuButtonKeybindings"),
-        secureNative("GameMenuButtonMacros"),
-        secureNative("GameMenuButtonAddOns"),
-        secureNative("GameMenuButtonHelp"),
-        secureNative("GameMenuButtonLogout"),
-        secureNative("GameMenuButtonQuit"),
-        secureNative("GameMenuButtonContinue"),
-    }
+    local rows={}
+    local function append(frame)
+        if frame then table.insert(rows,frame) end
+    end
+    append(M.options)
+    append(M.edit)
+    append(secureNative("GameMenuButtonKeybindings"))
+    append(secureNative("GameMenuButtonMacros"))
+    append(secureNative("GameMenuButtonAddOns"))
+    append(secureNative("GameMenuButtonHelp"))
+    append(secureNative("GameMenuButtonLogout"))
+    append(secureNative("GameMenuButtonQuit"))
+    append(secureNative("GameMenuButtonContinue"))
 
     -- Retire fragmented 3.3.5 Ascension menus: Options provides consolidated
     -- Video/Sound/Interface tabs; do not leave a duplicate column of red
