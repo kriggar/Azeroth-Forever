@@ -5,6 +5,7 @@ local function frame(typeName)
     local f = {objectType=typeName or "Frame", children={}, events={}, scripts={}, hooks={}, frameLevel=4}
     function f:RegisterEvent(name) self.events[name]=true end
     function f:SetScript(name,fn) self.scripts[name]=fn end
+    function f:GetScript(name) return self.scripts[name] end
     function f:HookScript(name,fn) self.hooks[name]=fn end
     function f:GetObjectType() return self.objectType end
     function f:GetChildren() return unpack(self.children) end
