@@ -88,6 +88,21 @@ def main():
                           "_coa_class_trainers_" + name + ".sql")
         check(trainer.is_file(), f"Missing protected trainer migration {trainer.name}")
 
+    loader = source("src/server/coa/CoAScriptLoader.cpp")
+    for disabled in ("AddSC_AscensionConvenienceItems", "AddSC_AscensionPersonalBank",
+                     "AddSC_AscensionWisdomball", "AddSC_AscensionExperimentalTeleporter",
+                     "AddSC_AscensionVoidPortal", "AddSC_AscensionWelcomeWarchest",
+                     "AddSC_AscensionAdventurerCache", "AddSC_AscensionHeirloomWeaponStore",
+                     "AddSC_AscensionBushcraft", "AddSC_AscensionCallboardCache"):
+        check("if (!vanilla) " + disabled + "();" in loader,
+              f"Unwanted convenience script {disabled} must be off by default")
+    for preserved in ("AddSC_AscensionRulesets();", "AddSC_AscensionClosestResurrection();",
+                      "AddAscensionBarbarianAbilityScripts();",
+                      "AddAscensionNecromancerAbilityScripts();",
+                      "AddSC_AscensionRunemasterTalents();",
+                      "AddSC_AscensionPrimalistTalents();"):
+        check("    " + preserved in loader, f"Protected class/cleanup script missing: {preserved}")
+
     windows = source(".github/workflows/build-windows-exe.yml")
     check("-DMODULES=disabled" in windows,
           "Optional CoA modules must be excluded from the vanilla Windows build")
