@@ -92,15 +92,18 @@ def run(exe, *args):
     return proc.stdout
 
 def extract_toc(mpqcli, archive, directory):
-    # mpqcli 0.11 expects <archive> <member> before option flags when
-    # extracting a specific file. The previous ordering failed on real MPQs.
-    run(mpqcli, "extract", archive, TOC_MEMBER.replace("/", "\\"),
-        "--output", directory)
-    matches = [p for p in Path(directory).rglob("*")
-               if p.is_file() and p.as_posix().lower().endswith("interface/framexml/framexml.toc")]
-    if len(matches) != 1:
-        raise RuntimeError("Effective FrameXML.toc not found or ambiguous in archive " + str(archive))
-    return matches[0].read_bytes()
+    """Read raw FrameXML.toc bytes directly; mpqcli 0.11 extract is all-only."""
+    member = TOC_MEMBER.replace("/", "\\")
+    proc = subprocess.run([str(mpqcli), "read", str(archive), member],
+                          capture_output=True)
+    if proc.returncode != 0:
+        raise RuntimeError(
+            "Cannot read effective FrameXML.toc from {}: {}".format(
+                archive, proc.stderr.decode("utf-8", "replace")[-1200:]))
+    if not proc.stdout or b"UIParent.lua" not in proc.stdout:
+        raise ValueError("Unrecognized CoA FrameXML.toc from " + str(archive))
+    return proc.stdout
+
 
 def stage(upstream, baseline_toc, staging):
     upstream = Path(upstream).resolve()
