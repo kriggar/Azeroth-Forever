@@ -174,8 +174,8 @@ jobs:
           $manifest = Join-Path $data 'patch-Z.MPQ.azeroth-forever.json'
           if (-not (Test-Path $manifest)) { throw 'Successful installation did not create a manifest' }
           $state = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
-          if ($state.version -ne 2 -or -not (Test-Path $state.originalPatchBackup)) {
-            throw 'Missing version 2 original patch backup'
+          if ($state.version -ne 3 -or -not (Test-Path $state.originalPatchBackup)) {
+            throw 'Missing version 3 original patch backup'
           }
           $savedSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $state.originalPatchBackup).Hash.ToLowerInvariant()
           if ($savedSha -ne $originalSha) { throw 'Original patch backup differs from source' }
@@ -194,11 +194,54 @@ jobs:
               $loader -notmatch 'UIParent.xml' -or
               $loader -notmatch 'AzerothForeverNativeBegin.lua' -or
               $loader -notmatch 'AzerothForeverNativeSettings.lua' -or
-              $loader -notmatch 'AzerothForeverNativeTransmog.lua') {
+              $loader -notmatch 'AzerothForeverNativeTransmog.lua' -or
+              $loader -notmatch 'AzerothForeverCoASpecPicker.lua') {
             throw 'Stock 3.3.5 XML loader, CoA class loader or native UI loader is missing'
           }
           $afterBSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant()
           if ($afterBSha -ne $originalBSha) { throw 'Installer changed original patch-B.MPQ' }
+          # The user already has this native patch installed. Updating must
+          # rebuild from the original CoA backup rather than fail with a
+          # manifest collision or merge duplicate FrameXML entries.
+          $originalBackup = $state.originalPatchBackup
+          $firstPatchedSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -FrameXMLArchive (Join-Path $data 'patch-B.MPQ')
+          if ($LASTEXITCODE -ne 0) { throw 'Upgrade failed on already-installed Azeroth Forever native client patch' }
+          $updatedState = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ($updatedState.version -ne 3 -or $updatedState.originalPatchBackup -ne $originalBackup) {
+            throw 'Upgrade lost the pristine original CoA patch backup'
+          }
+          if ($updatedState.originalPatchSha256 -ne $originalSha) { throw 'Upgraded manifest has wrong original CoA SHA' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $originalBackup).Hash.ToLowerInvariant() -ne $originalSha) {
+            throw 'Upgrade changed original CoA backup'
+          }
+          $upgradedExtracted = Join-Path $env:RUNNER_TEMP 'upgraded-test-extract'
+          & $cli extract --keep --output $upgradedExtracted (Join-Path $data 'patch-Z.MPQ') | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Upgraded MPQ cannot be extracted' }
+          $upgradedToc = Get-Content (Join-Path $upgradedExtracted 'Interface\FrameXML\FrameXML.toc') -Raw
+          $pickerEntries = [regex]::Matches($upgradedToc, '(?m)^AzerothForeverCoASpecPicker\.lua\r?
+          if ($LASTEXITCODE -ne 0) { throw 'Restore original CoA client patch failed' }
+          $restoredSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          if ($restoredSha -ne $originalSha) { throw 'Restore did not return exact original CoA patch' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant() -ne $originalBSha) {
+            throw 'Restore changed original FrameXML source archive'
+          }
+          if (-not (Test-Path (Join-Path $legacyAddon 'old-addon.txt'))) {
+            throw 'Legacy addon was not restored as promised'
+          }
+          if (Test-Path $manifest) { throw 'Restore left installation manifest' }
+          Write-Host 'PASS: CoA patch installed, upgraded from pristine original, and byte-exact rollback verified.'
+).Count
+          if ($pickerEntries -ne 1) { throw "Updated MPQ must load the new CoA picker exactly once; got $pickerEntries" }
+          if (-not (Test-Path (Join-Path $upgradedExtracted 'Interface\FrameXML\AzerothForeverCoASpecPicker.lua'))) {
+            throw 'The replacement CoA specialization UI is not in the built-in client package'
+          }
+          if ((Get-Content (Join-Path $upgradedExtracted 'CoA\Classes\CustomClass.dat') -Raw) -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
+            throw 'Upgrade damaged the original CoA class assets'
+          }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-B.MPQ')).Hash.ToLowerInvariant() -ne $originalBSha) {
+            throw 'Upgrade modified the original patch-B'
+          }
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -Restore
           if ($LASTEXITCODE -ne 0) { throw 'Restore original CoA client patch failed' }
           $restoredSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
