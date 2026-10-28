@@ -29,7 +29,19 @@ NATIVE_POST_FILES = (
     "AzerothForeverNativePolish.lua",
     "AzerothForeverNativeSettings.lua",
     "AzerothForeverNativeTransmog.lua",
+    "AzerothForeverCoATalents.lua",
 )
+
+# Azeroth Forever is a 21-class CoA realm. Upstream Talents.lua is a visually
+# faithful 3.3.5 WotLK *three-tree* talent UI, but it calls GetTalentInfo(),
+# LearnTalent(), etc. CoA instead uses CoATalentFrame and C_CharacterAdvancement.
+# Keep the upstream source intact for attribution, but DO NOT execute these
+# WotLK talent controllers. Skin the CoA frame in native polish instead.
+COA_UNSAFE_TALENT_CONTROLLERS = frozenset({
+    "Talents.lua",
+    "TalentsSearch.lua",
+    "TalentsData.lua",
+})
 UPSTREAM_UI_FILES = ("UIAtlas.lua", "PlayerFrame.lua", "ActionBar.lua",
                      "BottomBar.lua", "QuestLog.lua", "Achievements.lua",
                      "CharacterFrame.lua", "SpellBook.lua", "Talents.lua")
@@ -173,7 +185,10 @@ def stage(upstream, baseline_toc, staging):
 
     # Omit GlueXML so CoA custom class creation/login screens stay intact.
     entries = [BOOT_FILES[0]]
-    entries += [("AzerothForeverNative/" + str(f).replace("/", "\\")) for f in files]
+    entries += [
+        "AzerothForeverNative/" + str(f).replace("/", "\\")
+        for f in files if f.name not in COA_UNSAFE_TALENT_CONTROLLERS
+    ]
     entries += [BOOT_FILES[1]]
     # After the complete upstream interface initializes, load our integrated
     # client-native polish, settings and NPC-driven transmog controls.
@@ -181,6 +196,8 @@ def stage(upstream, baseline_toc, staging):
     (framexml / "FrameXML.toc").write_bytes(extend_framexml(baseline_toc, entries))
     return {
         "ui_modules": len(files),
+        "excluded_wotlk_talent_controllers": sorted(COA_UNSAFE_TALENT_CONTROLLERS),
+        "coa_talent_controls_preserved": True,
         "native_loader_entries": len(entries),
         "source_commit": UPSTREAM_COMMIT,
         "art_files": sum(1 for p in art.rglob("*") if p.is_file()),
