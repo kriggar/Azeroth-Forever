@@ -56,6 +56,7 @@ class ForeverUIContractTests(unittest.TestCase):
         self.assertIn('COA_UNSAFE_TALENT_CONTROLLERS', self.builder)
         self.assertIn('if f.name not in COA_UNSAFE_TALENT_CONTROLLERS', self.builder)
         self.assertIn('"AzerothForeverCoATalents.lua"', self.builder)
+        self.assertIn('"AzerothForeverCoATreeHome.lua"', self.builder)
         self.assertIn('CoATalentFrame', self.coa)
         self.assertIn('C_CharacterAdvancement', self.coa)
         self.assertIn('GetActiveChrSpec', self.coa)
@@ -75,7 +76,9 @@ class ForeverUIContractTests(unittest.TestCase):
                      "AzerothForeverNativePolish.lua",
                      "AzerothForeverNativeSettings.lua",
                      "AzerothForeverNativeTransmog.lua",
-                     "AzerothForeverCoATalents.lua"):
+                     "AzerothForeverCoATalents.lua",
+                     "AzerothForeverCoATreeHome.lua",
+                     "AzerothForeverNativeGameMenu.lua"):
             self.assertIn(name, self.builder)
             self.assertTrue((NATIVE / name).exists())
         self.assertIn('NATIVE_FOLDER = "Interface/FrameXML/AzerothForeverNative"',
