@@ -129,6 +129,39 @@ function R.Style()
               24, { 0, 0, 0, 0 }, "OVERLAY")
     end
 
+    -- The reference Talent panel is two large connected trees. We use the
+    -- genuine CoA node/edge widgets, not a counterfeit Blizzard 3-tree map.
+    local headings = CreateFrame("Frame", "AzerothForeverCoATreeHeadings", view)
+    headings:SetAllPoints(view)
+    headings:EnableMouse(false)
+    headings:SetFrameLevel(view:GetFrameLevel()+4)
+    local function makeHeading(x, text)
+        local t=headings:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
+        t:SetPoint("TOP",headings,"TOP",x,-57)
+        t:SetWidth(425)
+        t:SetJustifyH("CENTER")
+        t:SetText(text)
+        t:SetTextColor(1,.83,.49)
+        return t
+    end
+    R.classHeading=makeHeading(-300,"CLASS TALENTS")
+    R.specHeading=makeHeading(300,"SPECIALIZATION TALENTS")
+
+    -- A subtle line behind the TWO original 3.3.5-compatible class trees;
+    -- all connections/points continue to come from TalentTreeBase.
+    for _,tree in ipairs({view.ClassTree,view.SpecTree}) do
+        if tree.SetBackdrop then
+            tree:SetBackdrop({
+                bgFile="Interface\\Buttons\\WHITE8X8",
+                edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
+                edgeSize=12,
+                insets={left=2,right=2,top=2,bottom=2},
+            })
+            tree:SetBackdropColor(.015,.025,.05,.18)
+            tree:SetBackdropBorderColor(.33,.34,.39,.45)
+        end
+    end
+
     -- Keep the existing labels and point counts connected to CoA updates,
     -- only change typography.
     for _, t in ipairs({ view.ClassTree, view.SpecTree }) do
@@ -186,7 +219,25 @@ function R.Style()
     end
 
     R.panel = panel
+    R.SyncHeadings()
+    if not view.afForeverTalentTreeOnShow then
+        view.afForeverTalentTreeOnShow=true
+        view:HookScript("OnShow",function()
+            R.SyncHeadings()
+        end)
+    end
     return true
+end
+
+function R.SyncHeadings()
+    if not R.classHeading or not R.specHeading then return end
+    local name=(UnitClass and UnitClass("player")) or "Class"
+    R.classHeading:SetText(string.upper(tostring(name)) .. " TALENTS")
+    local api=_G.C_CharacterAdvancement
+    local id=api and api.GetActiveChrSpec and api.GetActiveChrSpec()
+    local info=id and _G.C_ClassInfo and C_ClassInfo.GetSpecInfoByID
+        and C_ClassInfo.GetSpecInfoByID(id)
+    R.specHeading:SetText(string.upper(tostring(info and info.Name or "Specialization")) .. " TALENTS")
 end
 
 function R.RemoveAscensionCollectionTabs()
