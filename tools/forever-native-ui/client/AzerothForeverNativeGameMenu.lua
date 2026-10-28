@@ -145,7 +145,6 @@ function M.Refresh()
     end
     append(M.options)
     append(M.edit)
-    append(M.journey)
     append(secureNative("GameMenuButtonKeybindings"))
     append(secureNative("GameMenuButtonMacros"))
     append(secureNative("GameMenuButtonAddOns"))
@@ -194,14 +193,6 @@ function M.Install()
     local f=GameMenuFrame
     M.options=makeButton(f,"Options",options)
     M.edit=makeButton(f,"Edit Mode",editMode)
-    M.journey=makeButton(f,"New Journey",function()
-        if GameMenuFrame then GameMenuFrame:Hide() end
-        if AF.Onboarding and type(AF.Onboarding.Open)=="function" then
-            AF.Onboarding.Open()
-        else
-            notice("The integrated onboarding preview was not loaded.")
-        end
-    end)
     -- The full ForeverUI port already draws its own ornate Game Menu
     -- heading. Do not draw another label on top of that existing title.
     if not (_G.ForeverUI and ForeverUI.GameMenu and ForeverUI.GameMenu.header) then
