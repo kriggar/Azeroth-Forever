@@ -92,8 +92,10 @@ def run(exe, *args):
     return proc.stdout
 
 def extract_toc(mpqcli, archive, directory):
-    run(mpqcli, "extract", "--keep", "--output", directory, archive,
-        TOC_MEMBER.replace("/", "\\"))
+    # mpqcli 0.11 expects <archive> <member> before option flags when
+    # extracting a specific file. The previous ordering failed on real MPQs.
+    run(mpqcli, "extract", archive, TOC_MEMBER.replace("/", "\\"),
+        "--output", directory)
     matches = [p for p in Path(directory).rglob("*")
                if p.is_file() and p.as_posix().lower().endswith("interface/framexml/framexml.toc")]
     if len(matches) != 1:
