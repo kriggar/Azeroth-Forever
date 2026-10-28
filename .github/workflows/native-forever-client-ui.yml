@@ -103,3 +103,86 @@ jobs:
           path: tools/forever-native-ui/
           if-no-files-found: error
           retention-days: 7
+
+  windows-install-and-restore:
+    needs: native-ui
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout native UI installer
+        uses: actions/checkout@v4
+      - name: Checkout the pinned full UI source
+        uses: actions/checkout@v4
+        with:
+          repository: Adrestie/mod-forever-ui
+          ref: c5149b96a9938ae9073ff8bb1662e42d2b7b5090
+          path: ui-upstream
+      - name: Install test Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exercise Windows installer on a fake existing CoA client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:RUNNER_TEMP 'CoA Client Fixture'
+          $data = Join-Path $root 'Data'
+          $seed = Join-Path $env:RUNNER_TEMP 'seed'
+          $base = Join-Path $seed 'Interface\FrameXML'
+          $custom = Join-Path $seed 'CoA\Classes'
+          New-Item -ItemType Directory -Path $data, $base, $custom -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $root 'Wow.exe') -Value 'fixture-only'
+          Set-Content -LiteralPath (Join-Path $base 'FrameXML.toc') -Value "UIParent.lua$([Environment]::NewLine)AscensionClassBridge.lua"
+          Set-Content -LiteralPath (Join-Path $custom 'CustomClass.dat') -Value 'ORIGINAL_COA_CLASS_ASSET'
+          $legacyAddon = Join-Path $root 'Interface\AddOns\AzerothForeverUI'
+          New-Item -ItemType Directory -Force -Path $legacyAddon | Out-Null
+          Set-Content -LiteralPath (Join-Path $legacyAddon 'old-addon.txt') -Value 'original toolbar'
+          $toolRoot = Join-Path $env:LOCALAPPDATA 'AzerothForever\NativeUI'
+          $toolDir = Join-Path $toolRoot 'tools'
+          New-Item -ItemType Directory -Path $toolDir -Force | Out-Null
+          $cli = Join-Path $toolDir 'mpqcli-windows-amd64.exe'
+          & curl.exe --fail --location --retry 3 -o "$cli" https://github.com/thegraydot/mpqcli/releases/download/v0.11.0/mpqcli-windows-amd64.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download MPQ test tool' }
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $cli).Hash.ToLowerInvariant()
+          if ($digest -ne 'ca4bc40d24ff0ae094e8e6118591a59cecb56b9227923e806e9a116d5e761277') {
+            throw 'MPQ tool hash mismatch'
+          }
+          & $cli create --game wow-wotlk --output (Join-Path $data 'patch-Z.MPQ') $seed
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to create original fixture patch' }
+          $originalSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          $sourceRoot = Join-Path $toolRoot 'mod-forever-ui-c5149b96a9938ae9073ff8bb1662e42d2b7b5090'
+          Copy-Item -LiteralPath 'ui-upstream' -Destination $sourceRoot -Recurse
+          $script = (Resolve-Path 'tools/forever-native-ui/Install-NativeForeverUI.ps1').Path
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -FrameXMLArchive (Join-Path $data 'patch-Z.MPQ')
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native UI installer failed with original patch-Z present' }
+          $manifest = Join-Path $data 'patch-Z.MPQ.azeroth-forever.json'
+          if (-not (Test-Path $manifest)) { throw 'Successful installation did not create a manifest' }
+          $state = Get-Content -LiteralPath $manifest -Raw | ConvertFrom-Json
+          if ($state.version -ne 2 -or -not (Test-Path $state.originalPatchBackup)) {
+            throw 'Missing version 2 original patch backup'
+          }
+          $savedSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $state.originalPatchBackup).Hash.ToLowerInvariant()
+          if ($savedSha -ne $originalSha) { throw 'Original patch backup differs from source' }
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant() -eq $originalSha) {
+            throw 'UI was not added to the test patch'
+          }
+          $extracted = Join-Path $env:RUNNER_TEMP 'merged-test-extract'
+          & $cli extract --keep --output $extracted (Join-Path $data 'patch-Z.MPQ') | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Installed merged MPQ could not be read' }
+          $classAsset = Get-Content (Join-Path $extracted 'CoA\Classes\CustomClass.dat') -Raw
+          if ($classAsset -notmatch 'ORIGINAL_COA_CLASS_ASSET') {
+            throw 'Existing CoA class content changed'
+          }
+          $loader = Get-Content (Join-Path $extracted 'Interface\FrameXML\FrameXML.toc') -Raw
+          if ($loader -notmatch 'AscensionClassBridge.lua' -or $loader -notmatch 'AzerothForeverNativeBegin.lua') {
+            throw 'Existing CoA class loader or native UI loader is missing'
+          }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -ClientFolder $root -Restore
+          if ($LASTEXITCODE -ne 0) { throw 'Restore original CoA client patch failed' }
+          $restoredSha = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $data 'patch-Z.MPQ')).Hash.ToLowerInvariant()
+          if ($restoredSha -ne $originalSha) { throw 'Restore did not return exact original CoA patch' }
+          if (-not (Test-Path (Join-Path $legacyAddon 'old-addon.txt'))) {
+            throw 'Legacy addon was not restored as promised'
+          }
+          if (Test-Path $manifest) { throw 'Restore left installation manifest' }
+          Write-Host 'PASS: Existing CoA MPQ preserved, full UI installed, full original archive restored exactly.'
