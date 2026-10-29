@@ -1,301 +1,342 @@
--- Azeroth Forever — real CoA Class/Spec talent tree home.
--- CLIENT FrameXML, not an added addon. The rejected four-card/side-rail
--- replacement is removed. We never render faux talent nodes or copy any
--- vanilla/WotLK talent IDs into the Conquest of Azeroth class systems.
---
--- Uses the original CoA:
---   CoATalentFrame.TreeView.ClassTree / .SpecTree (actual node links, ranks)
---   CoATreeViewMixin:SetSpecID (real class/spec client DBC talent graph)
---   CoASpecChoiceMixin:OnSelected (original specialization action)
---   C_CharacterAdvancement (validation, points and pending talents)
--- The only new control is a thin specialization tab row above both trees.
-
 local AF = _G.AzerothForeverNative or {}
 _G.AzerothForeverNative = AF
-local R = {}
+local R = {version=5, specs={}, buttons={}, treesOpened=false}
 AF.CoATreeHome = R
-R.version = 4
-R.specs = {}
-R.buttons = {}
-R.treesOpened = false
-R.lastError = nil
 
 local function explain(text)
-    if AF.Notice then AF.Notice("CoA talent trees: " .. tostring(text)) end
+    R.lastError = tostring(text)
+    if AF.Notice then AF.Notice("CoA talent trees: " .. R.lastError) end
 end
 
 local function isCoA()
     return type(IsCustomClass) == "function" and IsCustomClass()
 end
 
+local function inCombat()
+    return type(InCombatLockdown) == "function" and InCombatLockdown()
+end
+
 local function readActiveSpec()
     local api = _G.C_CharacterAdvancement
     if api and type(api.GetActiveChrSpec) == "function" then
         local ok, id = pcall(api.GetActiveChrSpec)
-        if ok then return id end
+        if ok and type(id) == "number" and id > 0 then return id end
     end
 end
 
 local function choicesForClass()
+    if type(UnitClass) ~= "function" then return {} end
     local cls = select(2, UnitClass("player"))
     local api = _G.C_ClassInfo
-    local result = {}
+    local result, seen = {}, {}
     if not cls or not api or type(api.GetAllSpecs) ~= "function" or
-        type(api.GetSpecInfo) ~= "function" then return result end
+       type(api.GetSpecInfo) ~= "function" then return result end
     local ok, names = pcall(api.GetAllSpecs, cls)
     if not ok or type(names) ~= "table" then return result end
     for _, value in ipairs(names) do
         local success, info = pcall(api.GetSpecInfo, cls, value)
-        if success and type(info) == "table" and info.ID then
-            table.insert(result, {
-                id=info.ID,
-                name=tostring(info.Name or info.Spec or value),
-                info=info
-            })
+        if success and type(info) == "table" and type(info.ID) == "number" and
+           info.ID > 0 and not seen[info.ID] then
+            seen[info.ID] = true
+            result[#result+1] = {id=info.ID, name=tostring(info.Name or info.Spec or value), info=info}
         end
     end
     return result
 end
 R.GetSpecs = choicesForClass
 
-local function pickFirst(specs)
-    if #specs == 0 then return nil end
-    local active = readActiveSpec()
-    if active then
-        for _, spec in ipairs(specs) do
-            if spec.id == active then return spec end
-        end
+local function findSpec(id)
+    for _, spec in ipairs(R.specs) do
+        if spec.id == id then return spec end
     end
-    if R.previewSpecID then
-        for _, spec in ipairs(specs) do
-            if spec.id == R.previewSpecID then return spec end
-        end
-    end
-    return specs[1]
+end
+
+local function pickFirst()
+    return findSpec(R.previewSpecID) or findSpec(readActiveSpec()) or R.specs[1]
 end
 
 local function originalChoice(root, specId)
     local pool = root.SpecView and root.SpecView.SpecChoicePool
-    if not pool or type(pool.EnumerateActive) ~= "function" then return nil end
+    if not pool or type(pool.EnumerateActive) ~= "function" then return end
     for original in pool:EnumerateActive() do
-        if original and original.specInfo and original.specInfo.ID == specId then
-            return original
-        end
+        if original and original.specInfo and original.specInfo.ID == specId then return original end
     end
 end
 
-local function applyOriginalSelection(root, spec)
-    if not spec then return false end
-    local chosen = originalChoice(root, spec.id)
-    if not chosen or type(chosen.OnSelected) ~= "function" then
-        explain("Original CoA specialization selection is unavailable; no talent change sent.")
-        return false
-    end
-    local active = readActiveSpec()
-    if not active and _G.C_CharacterAdvancement and
-        type(C_CharacterAdvancement.CanSwitchActiveChrSpec) == "function" then
-        local allowed, can = pcall(C_CharacterAdvancement.CanSwitchActiveChrSpec, spec.id)
-        if not allowed or can == false then
-            explain("This specialization is locked by the CoA server.")
-            return false
-        end
-    end
-    -- The original client method handles the real server message.
-    local ok, err = pcall(chosen.OnSelected, chosen)
-    if not ok then
-        R.lastError = err
-        explain(err)
-        return false
-    end
-    return true
+local function tooltip(button)
+    if not GameTooltip or not button.spec then return end
+    GameTooltip:SetOwner(button, "ANCHOR_TOP")
+    GameTooltip:SetText(button.spec.name)
+    GameTooltip:AddLine(button.spec.id == readActiveSpec() and "Active specialization" or
+                        "Click to preview. Choose specialization to edit this tree.", 0.85, 0.8, 0.65, true)
+    GameTooltip:Show()
 end
 
-function R.Select(specId)
+local function skinButton(button)
+    local templates = _G.ForeverUI and ForeverUI.Templates
+    if templates and type(templates.ThreeSliceButton) == "function" then
+        pcall(templates.ThreeSliceButton, button, "128-redbutton",
+              {GameFontNormal, GameFontHighlight, GameFontDisable})
+    end
+end
+
+local function makeTab(strip)
+    local button = CreateFrame("Button", nil, strip, "UIPanelButtonTemplate")
+    button:SetHeight(27)
+    skinButton(button)
+    button:SetScript("OnClick", function(self) if self.spec then R.Select(self.spec.id) end end)
+    button:SetScript("OnEnter", tooltip)
+    button:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    local selected = button:CreateTexture(nil, "OVERLAY")
+    selected:SetTexture("Interface\\Buttons\\WHITE8X8")
+    selected:SetVertexColor(0.95, 0.76, 0.34, 1)
+    selected:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 6, 2)
+    selected:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -6, 2)
+    selected:SetHeight(2)
+    button.selected = selected
+    return button
+end
+
+function R.LayoutTabs()
+    if not R.tabStrip then return end
+    local width = R.tabStrip:GetWidth()
+    if not width or width <= 0 then width = CoATalentFrame.TreeView:GetWidth() end
+    if not width or width <= 0 then return end
+    local count = #R.specs
+    local gap, left, actionWidth = 6, 12, math.min(176, width * 0.24)
+    local available = width - left * 2 - actionWidth - 12
+    local tabWidth = count > 0 and math.min(190, (available - gap * (count-1)) / count) or 0
+    R.tabWidth = math.max(1, tabWidth)
+    for i, button in ipairs(R.buttons) do
+        button:ClearAllPoints()
+        button:SetWidth(R.tabWidth)
+        button:SetPoint("TOPLEFT", R.tabStrip, "TOPLEFT", left + (i-1)*(R.tabWidth+gap), -3)
+        local font = button.GetFontString and button:GetFontString()
+        if font then
+            font:SetWidth(math.max(1, R.tabWidth-16))
+            if font.SetWordWrap then font:SetWordWrap(false) end
+        end
+    end
+    R.choose:SetWidth(actionWidth)
+    R.choose:ClearAllPoints()
+    R.choose:SetPoint("TOPRIGHT", R.tabStrip, "TOPRIGHT", -left, -3)
+end
+
+local function ensurePreviewGuard(tree)
+    if not tree then return end
+    if tree.afForeverPreviewGuard then return tree.afForeverPreviewGuard end
+    local guard = CreateFrame("Frame", nil, tree)
+    guard:SetAllPoints(tree)
+    guard:SetFrameLevel(tree:GetFrameLevel()+50)
+    guard:EnableMouse(true)
+    guard:SetScript("OnMouseDown", function()
+        explain("This is a read-only preview. Use Choose specialization before editing talents.")
+    end)
+    guard:Hide()
+    tree.afForeverPreviewGuard = guard
+    return guard
+end
+
+function R.UpdatePreviewState()
     local root = _G.CoATalentFrame
-    if not root or not root.TreeView then return false end
-    for _, s in ipairs(R.specs) do
-        if s.id == specId then
-            R.previewSpecID = specId
-            R.UpdateTabs()
-            -- Previewing updates only the visible client class/spec node map.
-            -- It never commits, buys, resets or changes a CoA specialization.
-            if root.TreeView.SetSpecID then
-                local ok, err = pcall(root.TreeView.SetSpecID, root.TreeView, specId)
-                if not ok then
-                    R.lastError = err
-                    explain("Could not display CoA talent graph: " .. tostring(err))
-                    return false
-                end
-            end
-            R.OpenTrees()
-            -- Use a second click on an unchosen tab to commit? No: clicking
-            -- a tab must preserve the exact old "Choose Talents" semantics.
-            if readActiveSpec() ~= specId then
-                return applyOriginalSelection(root, s)
-            end
-            return true
+    local view = root and root.TreeView
+    if not view then return end
+    local active = readActiveSpec()
+    local editable = R.stagedSpecID or active
+    local readOnly = not editable or (R.previewSpecID and R.previewSpecID ~= editable)
+    R.readOnly = not not readOnly
+    for _, tree in ipairs({view.ClassTree, view.SpecTree}) do
+        local guard = ensurePreviewGuard(tree)
+        if guard then
+            if readOnly then guard:Show() else guard:Hide() end
         end
     end
-    return false
-end
-
-local function makeTab(parent, id, index)
-    local btn = CreateFrame("Button","AzerothForeverCoASpecTab" .. index,
-                            parent,"UIPanelButtonTemplate")
-    btn:SetHeight(27)
-    btn:SetWidth(160)
-    btn:SetPoint("TOPLEFT", parent, "TOPLEFT", 20+(index-1)*169,-2)
-    btn:SetScript("OnClick", function() R.Select(id) end)
-    return btn
-end
-
-function R.CreateTabStrip(root)
-    if R.tabStrip then return R.tabStrip end
-    local tree = root.TreeView
-    local strip = CreateFrame("Frame","AzerothForeverCoATreeTabs",tree)
-    strip:SetHeight(33)
-    strip:SetPoint("TOPLEFT",tree,"TOPLEFT",3,-2)
-    strip:SetPoint("TOPRIGHT",tree,"TOPRIGHT",-4,-2)
-    strip:SetFrameLevel(tree:GetFrameLevel()+30)
-    strip:EnableMouse(false)
-    R.tabStrip = strip
-
-    local bg=strip:CreateTexture(nil,"BACKGROUND")
-    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
-    bg:SetAllPoints(strip)
-    bg:SetVertexColor(.028,.037,.05,.97)
-    for index=1,7 do
-        -- CoA class roster has different numbers of specializations.
-        local tab=makeTab(strip,0,index)
-        tab:Hide()
-        R.buttons[index]=tab
+    local bar = view.BottomBar
+    local undo = bar and bar.UndoButton
+    if undo and not undo.afForeverPreviewHook then
+        undo.afForeverPreviewHook = true
+        undo:HookScript("OnClick", function()
+            R.stagedSpecID = nil
+            R.previewSpecID = readActiveSpec()
+            R.renderedSpecID = nil
+            R.OpenTrees()
+        end)
     end
-    R.info=strip:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall")
-    R.info:SetPoint("BOTTOMRIGHT",strip,"TOPRIGHT",-14,3)
-    R.info:SetWidth(530)
-    R.info:SetJustifyH("RIGHT")
-    return strip
+    local save = bar and bar.SaveChanges
+    if not save then return end
+    if not save.afForeverPreviewHook then
+        save.afForeverPreviewHook = true
+        save:HookScript("OnEnable", function(self) if R.readOnly then self:Disable() end end)
+    end
+    if readOnly then
+        R.saveGated = true
+        save:Disable()
+    elseif R.saveGated then
+        R.saveGated = false
+        local api = _G.C_CharacterAdvancement
+        if api and type(api.CanApplyPendingBuild) == "function" then
+            local ok, allowed = pcall(api.CanApplyPendingBuild)
+            if ok and (allowed == true or allowed == 1) then save:Enable() end
+        end
+    end
 end
 
 function R.UpdateTabs()
     if not R.tabStrip then return end
     local active = readActiveSpec()
-    for i,button in ipairs(R.buttons) do
-        local spec=R.specs[i]
-        if spec then
-            button:SetText((spec.id == active and "|cff88dd88" or "|cffdfc081")
-                           .. spec.name .. "|r")
-            -- A button labelled as a tab, not a giant spec preview card.
-            button:SetScript("OnClick",function() R.Select(spec.id) end)
-            button:Show()
-        else
-            button:Hide()
-        end
+    local selected = pickFirst()
+    for i, spec in ipairs(R.specs) do
+        if not R.buttons[i] then R.buttons[i] = makeTab(R.tabStrip) end
+        local button = R.buttons[i]
+        button.spec = spec
+        button:SetText((spec.id == active and "|cff88dd88" or "|cffdfc081") .. spec.name .. "|r")
+        if selected and spec.id == selected.id then button.selected:Show() else button.selected:Hide() end
+        button:Show()
     end
-    if R.info then
-        if active then
-            R.info:SetText("CoA CLASS + SPECIALIZATION TALENTS | Original ranks and rules")
-        else
-            R.info:SetText("|cffffcc66Preview CoA talents | Choose a specialization above to activate|r")
-        end
-    end
+    for i=#R.specs+1,#R.buttons do R.buttons[i].spec=nil; R.buttons[i]:Hide() end
+    local current = selected and selected.id == active
+    local staged = selected and selected.id == R.stagedSpecID
+    R.choose:SetText(current and "Active specialization" or (staged and "Selection staged" or "Choose specialization"))
+    if not selected or current or staged or inCombat() then R.choose:Disable() else R.choose:Enable() end
+    R.LayoutTabs()
+    R.UpdatePreviewState()
+end
+
+function R.CreateTabStrip(root)
+    if R.tabStrip then return R.tabStrip end
+    local tree = root.TreeView
+    local strip = CreateFrame("Frame", "AzerothForeverCoATreeTabs", tree)
+    strip:SetHeight(33)
+    strip:SetPoint("TOPLEFT", tree, "TOPLEFT", 3, -2)
+    strip:SetPoint("TOPRIGHT", tree, "TOPRIGHT", -4, -2)
+    strip:SetFrameLevel(tree:GetFrameLevel()+30)
+    strip:EnableMouse(false)
+    local bg = strip:CreateTexture(nil, "BACKGROUND")
+    bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bg:SetAllPoints(strip)
+    bg:SetVertexColor(0.028, 0.037, 0.05, 0.97)
+    R.tabStrip = strip
+    R.choose = CreateFrame("Button", "AzerothForeverChooseSpec", strip, "UIPanelButtonTemplate")
+    R.choose:SetHeight(27)
+    skinButton(R.choose)
+    R.choose:SetScript("OnClick", function() R.ConfirmSelection(R.previewSpecID) end)
+    strip:HookScript("OnSizeChanged", function() R.LayoutTabs() end)
+    return strip
 end
 
 local function safePreview(root, id)
-    local tree=root.TreeView
-    if not tree or type(tree.SetSpecID) ~= "function" then return false end
-    local success, err=pcall(tree.SetSpecID,tree,id)
-    if not success then
-        R.lastError=err
-        explain("The original CoA talent data could not load: "..tostring(err))
-    end
-    return success
+    if R.renderedSpecID == id then return true end
+    if type(root.TreeView.SetSpecID) ~= "function" then return false end
+    local ok, err = pcall(root.TreeView.SetSpecID, root.TreeView, id)
+    if not ok then explain("Could not display CoA talent graph: " .. tostring(err)); return false end
+    R.renderedSpecID = id
+    return true
 end
 
--- This is the critical change: bring the actual CoA node-and-arrow tree
--- window directly to the foreground on N/Talents, never the old card chooser.
 function R.OpenTrees()
-    if not isCoA() then return false end
-    local root=_G.CoATalentFrame
-    if not root or not root.TreeView or not root.SpecView then return false end
-    if not _G.C_CharacterAdvancement then return false end
-    if not R.tabStrip then R.CreateTabStrip(root) end
-    if #R.specs==0 then R.specs=choicesForClass() end
-    local spec=pickFirst(R.specs)
-    if not spec then return false end
-    if not safePreview(root,spec.id) then return false end
-
-    -- CoA TreeView contains live TalentTreeBase nodes, prerequisite links,
-    -- ranks and original pending-build handlers. It is not a fake redrawn
-    -- talent tree. This is the ONLY view player opens for CoA talents.
-    if root.SpecView:IsShown() then root.SpecView:Hide() end
-    if not root.TreeView:IsShown() then
-        local ok, err=pcall(root.TreeView.Show,root.TreeView)
-        if not ok then
-            R.lastError=err
-            explain("The original CoA talent panel reported: "..tostring(err))
-            return false
+    if R.opening or R.selecting or not isCoA() or inCombat() then return false end
+    local root = _G.CoATalentFrame
+    if not root or not root.TreeView or not root.SpecView or not _G.C_CharacterAdvancement then return false end
+    R.opening = true
+    local ok, result = pcall(function()
+        if #R.specs == 0 then R.specs = choicesForClass() end
+        local spec = pickFirst()
+        if not spec or not safePreview(root, spec.id) then return false end
+        R.previewSpecID = spec.id
+        R.CreateTabStrip(root)
+        if root.SpecView:IsShown() then root.SpecView:Hide() end
+        if not root.TreeView:IsShown() then root.TreeView:Show() end
+        R.treesOpened = true
+        R.UpdateTabs()
+        local skin = AF.CoATalents
+        if skin then
+            if type(skin.Style) == "function" then
+                local styled, err = pcall(skin.Style)
+                if not styled then explain(err) end
+            end
+            if type(skin.Fit) == "function" then
+                local fitted, err = pcall(skin.Fit)
+                if not fitted then explain(err) end
+            end
         end
+        return true
+    end)
+    R.opening = nil
+    if not ok then explain(result); return false end
+    return result
+end
+
+function R.Select(specId)
+    if R.opening or R.selecting then return false end
+    if inCombat() then explain("Specialization previews are unavailable during combat."); return false end
+    if not findSpec(specId) then return false end
+    local previous = R.previewSpecID
+    R.previewSpecID = specId
+    if R.OpenTrees() then return true end
+    R.previewSpecID = previous
+    return false
+end
+
+function R.ConfirmSelection(specId)
+    if R.selecting or inCombat() then return false end
+    local root = _G.CoATalentFrame
+    local spec = findSpec(specId)
+    if not root or not spec or specId ~= R.previewSpecID then return false end
+    if specId == (R.stagedSpecID or readActiveSpec()) then return true end
+    local api = _G.C_CharacterAdvancement
+    if not api or type(api.CanSwitchActiveChrSpec) ~= "function" then
+        explain("Specialization validation is unavailable. No change was made."); return false
     end
-    R.treesOpened=true
-    R.UpdateTabs()
-    if not readActiveSpec() then
-        -- The backend has not selected a specialization yet; we show the
-        -- actual node graph as a PREVIEW but do not allow fake spending.
-        local bottom=root.TreeView.BottomBar
-        if bottom and bottom.SaveChanges then bottom.SaveChanges:Disable() end
+    local valid, allowed = pcall(api.CanSwitchActiveChrSpec, specId)
+    if not valid or not (allowed == true or allowed == 1) then
+        explain("The original CoA rules do not allow this specialization change."); return false
     end
-    local skin=AF.CoATalents
-    if skin then
-        if type(skin.Style)=="function" then pcall(skin.Style) end
-        if type(skin.Fit)=="function" then pcall(skin.Fit) end
+    local chosen = originalChoice(root, specId)
+    if not chosen or type(chosen.OnSelected) ~= "function" then
+        explain("Original specialization selection is unavailable. No change was made."); return false
     end
+    R.selecting = true
+    local ok, err = pcall(chosen.OnSelected, chosen)
+    R.selecting = nil
+    R.renderedSpecID = nil
+    if not ok or err == false then explain(err or "The native selection was refused."); return false end
+    R.stagedSpecID = specId
+    R.OpenTrees()
     return true
 end
 
 function R.Attach()
-    if not isCoA() then return false end
-    local root=_G.CoATalentFrame
+    if not isCoA() or inCombat() then return false end
+    local root = _G.CoATalentFrame
     if not root or not root.TreeView or not root.SpecView then return false end
     if R.attached == root then return true end
-    R.attached=root
-    R.specs=choicesForClass()
+    R.attached = root
+    R.specs = choicesForClass()
     R.CreateTabStrip(root)
-    root:HookScript("OnShow",function()
-        local ok,err=pcall(R.OpenTrees)
-        if not ok then R.lastError=err; explain(err) end
-    end)
-    root.SpecView:HookScript("OnShow",function()
-        local ok,err=pcall(R.OpenTrees)
-        if not ok then R.lastError=err; explain(err) end
-    end)
-    if root:IsShown() then
-        local ok,err=pcall(R.OpenTrees)
-        if not ok then R.lastError=err; explain(err) end
-    end
+    root:HookScript("OnShow", function() R.OpenTrees() end)
+    root.SpecView:HookScript("OnShow", function() R.OpenTrees() end)
+    if root:IsShown() then R.OpenTrees() end
     return true
 end
 
-local watcher=CreateFrame("Frame")
-watcher:RegisterEvent("PLAYER_LOGIN")
-watcher:RegisterEvent("ADDON_LOADED")
-watcher:RegisterEvent("ASCENSION_CA_SPECIALIZATION_ACTIVE_ID_CHANGED")
-watcher:SetScript("OnEvent",function(self,event,name)
-    if event=="ASCENSION_CA_SPECIALIZATION_ACTIVE_ID_CHANGED" then
-        R.UpdateTabs()
-        return
-    end
-    if event=="PLAYER_LOGIN" or (event=="ADDON_LOADED" and
-        (name=="Ascension_CoATalents" or name=="Ascension_Collections")) then
+local watcher = CreateFrame("Frame")
+for _, event in ipairs({"PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_ENABLED",
+                        "ASCENSION_CA_SPECIALIZATION_ACTIVE_ID_CHANGED"}) do watcher:RegisterEvent(event) end
+watcher:SetScript("OnEvent", function(self, event, name)
+    if event == "ASCENSION_CA_SPECIALIZATION_ACTIVE_ID_CHANGED" then
+        R.stagedSpecID = nil
+        R.previewSpecID = readActiveSpec()
+        R.renderedSpecID = nil
+        R.specs = choicesForClass()
+        if CoATalentFrame and CoATalentFrame:IsShown() then R.OpenTrees() end
+    elseif event ~= "ADDON_LOADED" or name == "Ascension_CoATalents" or name == "Ascension_Collections" then
         R.Attach()
+        if event == "PLAYER_REGEN_ENABLED" and R.attached and R.attached:IsShown() then R.OpenTrees() end
     end
 end)
-watcher.elapsed=0
-watcher:SetScript("OnUpdate",function(self,elapsed)
-    if R.attached then self:SetScript("OnUpdate",nil); return end
-    self.elapsed=self.elapsed+(elapsed or 0)
-    if self.elapsed>=0.8 then
-        self.elapsed=0
-        R.Attach()
-    end
+watcher.elapsed = 0
+watcher:SetScript("OnUpdate", function(self, elapsed)
+    if R.attached then self:SetScript("OnUpdate", nil); return end
+    self.elapsed = self.elapsed + (elapsed or 0)
+    if self.elapsed >= 0.8 then self.elapsed=0; R.Attach() end
 end)

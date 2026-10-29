@@ -1,224 +1,210 @@
--- Azeroth Forever — client-native 2026-style Escape / options menu.
--- Loaded from Interface/FrameXML/FrameXML.toc; NO AddOns entry.
--- Provides consolidated Options and Edit Mode buttons, retains the original
--- client's secure Logout/Quit/Return button handlers. Unsupported modern
--- client-only settings are never silently claimed as functional.
---
--- UI styling reference: WoW: Forever beta: Game Menu > Options / Edit Mode.
 local AF = _G.AzerothForeverNative or {}
 _G.AzerothForeverNative = AF
-local M = { installed=false, buttons={}, suppressed={} }
+local M = {installed=false, buttons={}, suppressed={}}
 AF.GameMenu = M
 
-local function present(frame)
-    return frame and frame.IsShown and frame:IsShown()
+local function inCombat()
+    return type(InCombatLockdown) == "function" and InCombatLockdown()
 end
 
 local function notice(text)
     if AF.Notice then AF.Notice("Game menu: " .. tostring(text)) end
 end
 
-local function setVisible(frame, show)
-    if frame then
-        if show then frame:Show() else frame:Hide() end
-    end
+local function secureNative(name)
+    local frame = _G[name]
+    if frame and frame.GetScript and type(frame:GetScript("OnClick")) == "function" then return frame end
 end
 
-local function secureNative(name)
-    local frame=_G[name]
-    if not frame or not frame.GetScript or
-       type(frame:GetScript("OnClick")) ~= "function" then return nil end
-    return frame
+local function hasEditMode()
+    return _G.ForeverUI and ForeverUI.CustomizeUI and type(ForeverUI.CustomizeUI.Open) == "function"
 end
 
 local function editMode()
-    if _G.ForeverUI and ForeverUI.CustomizeUI and
-       type(ForeverUI.CustomizeUI.Open)=="function" then
-        if GameMenuFrame then GameMenuFrame:Hide() end
-        ForeverUI.CustomizeUI.Open()
-    else
-        notice("The native Edit Mode is not available in this client build.")
-    end
+    if not hasEditMode() then notice("The native Edit Mode is not available in this client build."); return end
+    GameMenuFrame:Hide()
+    ForeverUI.CustomizeUI.Open()
 end
 
 local function options()
-    if GameMenuFrame then GameMenuFrame:Hide() end
-    if type(AF.OpenSettings)=="function" then
+    if type(AF.OpenSettings) == "function" then
+        GameMenuFrame:Hide()
         AF.OpenSettings()
     elseif InterfaceOptionsFrame then
+        GameMenuFrame:Hide()
         InterfaceOptionsFrame:Show()
     else
         notice("The Options panel is unavailable.")
     end
 end
 
+local function styleButton(button)
+    local templates = _G.ForeverUI and ForeverUI.Templates
+    if not button.afForeverMenuStyled and templates and type(templates.ThreeSliceButton) == "function" then
+        local ok = pcall(templates.ThreeSliceButton, button, "128-redbutton",
+                         {GameFontHighlightLarge, GameFontHighlightLarge, GameFontDisableLarge})
+        if ok then button.afForeverMenuStyled = true end
+    end
+    button:SetWidth(222)
+    button:SetHeight(30)
+end
+
 local function makeButton(parent, text, action)
-    local b=CreateFrame("Button",nil,parent,"UIPanelButtonTemplate")
-    b:SetWidth(222) b:SetHeight(30)
-    b:SetText(text)
-    -- Use the same 2026-style atlas-button treatment already used by the
-    -- GPL ForeverUI port for the other Escape-menu actions. Its up/hover/
-    -- disabled states match those native buttons rather than a 3.3.5 default.
-    local templates=_G.ForeverUI and ForeverUI.Templates
-    if templates and type(templates.ThreeSliceButton)=="function" then
-        pcall(templates.ThreeSliceButton,b,"128-redbutton",
-              {GameFontHighlightLarge,GameFontHighlightLarge,GameFontDisableLarge})
-    end
-    b:SetScript("OnClick",action)
-    return b
-end
-
--- Do not remove a named gameplay element because its tooltip resembles a
--- Trial. Only remove unwanted Ascension trial / store menu buttons in the
--- non-combat Micro Menu. The player action bars and talent controls remain.
-local TRIAL_UI_NAMES={
-    "AscensionTrialMicroButton",
-    "AscensionTrialsMicroButton",
-    "TrialMicroButton",
-    "TrialsMicroButton",
-    "AscensionTrialButton",
-    "TrialModeMicroButton",
-    "AscensionTrialMenuButton",
-}
-function M.HideTrialControls()
-    for _,name in ipairs(TRIAL_UI_NAMES) do
-        local f=_G[name]
-        if f and f.Hide and not M.suppressed[name] then
-            M.suppressed[name]=true
-            f:Hide()
-            if f.HookScript then
-                f:HookScript("OnShow",function(self) self:Hide() end)
-            end
-        end
-    end
-    if not _G.GameMenuFrame then return end
-    -- Ascension-only game menu entries explicitly labelled Trial.
-    -- Legitimate Story/Quest action buttons elsewhere are untouched.
-    for _,button in ipairs({GameMenuFrame:GetChildren()}) do
-        local label=button.GetText and button:GetText()
-        local frameName=button.GetName and button:GetName()
-        if type(label)=="string" and
-           (label=="Trial" or label=="Trials" or label=="Trial Mode"
-            or label=="Trial Challenges") and
-           type(frameName)=="string" and
-           not M.suppressed[frameName] then
-            M.suppressed[frameName]=true
-            button:Hide()
-            button:HookScript("OnShow",function(self) self:Hide() end)
-        end
-    end
-end
-
-local function style(frame)
-    if not frame then return end
-    frame:SetWidth(282)
-    frame:SetHeight(478)
-    if frame.SetBackdrop then
-        frame:SetBackdrop({
-            bgFile="Interface\\DialogFrame\\UI-DialogBox-Background",
-            edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
-            tile=true,tileSize=32,edgeSize=22,
-            insets={left=7,right=7,top=7,bottom=7},
-        })
-        frame:SetBackdropColor(.028,.035,.047,.98)
-        frame:SetBackdropBorderColor(.46,.4,.28,.96)
-    end
-end
-
-local function keepOriginalClick(button)
-    -- Do NOT assign any new OnClick script to Logout, Quit, Continue, or
-    -- other secure game-client operations; just restyle & reposition them.
+    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    button:SetText(text)
+    button:SetScript("OnClick", action)
+    styleButton(button)
     return button
 end
 
-function M.Refresh()
-    local frame=_G.GameMenuFrame
-    if not frame then return end
-    if M.locked then return end
-    M.locked=true
-    M.HideTrialControls()
-    style(frame)
+local trialNames = {
+    "AscensionTrialMicroButton", "AscensionTrialsMicroButton", "TrialMicroButton", "TrialsMicroButton",
+    "AscensionTrialButton", "TrialModeMicroButton", "AscensionTrialMenuButton"
+}
 
-    local rows={}
-    local function append(frame)
-        if frame then table.insert(rows,frame) end
+local function suppress(name, frame)
+    if not frame or not frame.Hide then return end
+    frame:Hide()
+    if M.suppressed[name] == frame then return end
+    M.suppressed[name] = frame
+    if frame.HookScript then
+        frame:HookScript("OnShow", function(self)
+            if not inCombat() then self:Hide() else M.pending=true end
+        end)
     end
-    append(M.options)
-    append(M.edit)
-    append(secureNative("GameMenuButtonKeybindings"))
-    append(secureNative("GameMenuButtonMacros"))
-    append(secureNative("GameMenuButtonAddOns"))
-    append(secureNative("GameMenuButtonHelp"))
-    append(secureNative("GameMenuButtonLogout"))
-    append(secureNative("GameMenuButtonQuit"))
-    append(secureNative("GameMenuButtonContinue"))
-
-    -- Retire fragmented 3.3.5 Ascension menus: Options provides consolidated
-    -- Video/Sound/Interface tabs; do not leave a duplicate column of red
-    -- custom Ascension settings buttons. Only hide our known redundant ones.
-    for _,name in ipairs({
-        "GameMenuButtonOptions", "GameMenuButtonSoundOptions",
-        "GameMenuButtonMacOptions", "GameMenuButtonUIOptions",
-        "GameMenuButtonRatings", "GameMenuButtonDiscord",
-        "GameMenuButtonJoinDiscord", "GameMenuButtonReportBug"
-    }) do
-        local old=_G[name]
-        if old and old ~= M.options and old ~= M.edit then old:Hide() end
-    end
-
-    local y=71
-    local count=0
-    for _,b in ipairs(rows) do
-        if b then
-            b:ClearAllPoints()
-            b:SetPoint("TOP",frame,"TOP",0,-y)
-            b:SetWidth(222)
-            b:SetHeight(30)
-            if b ~= M.options and b ~= M.edit then
-                keepOriginalClick(b)
-            end
-            setVisible(b,true)
-            y=y+36
-            count=count+1
-        end
-    end
-    frame:SetHeight(math.max(290, y+30))
-    if M.heading then M.heading:SetText("GAME MENU") end
-    M.buttonCount=count
-    M.locked=nil
 end
 
-function M.Install()
-    if M.installed or not GameMenuFrame then return M.installed end
-    local f=GameMenuFrame
-    M.options=makeButton(f,"Options",options)
-    M.edit=makeButton(f,"Edit Mode",editMode)
-    -- The full ForeverUI port already draws its own ornate Game Menu
-    -- heading. Do not draw another label on top of that existing title.
-    if not (_G.ForeverUI and ForeverUI.GameMenu and ForeverUI.GameMenu.header) then
-        local heading=f:CreateFontString(nil,"OVERLAY","GameFontNormalLarge")
-        heading:SetPoint("TOP",f,"TOP",0,-25)
-        heading:SetText("GAME MENU")
-        M.heading=heading
+function M.HideTrialControls()
+    if inCombat() then M.pending=true; return end
+    for _, name in ipairs(trialNames) do suppress(name, _G[name]) end
+    if not _G.GameMenuFrame then return end
+    for _, button in ipairs({GameMenuFrame:GetChildren()}) do
+        local label = button.GetText and button:GetText()
+        local name = button.GetName and button:GetName()
+        if name and (label == "Trial" or label == "Trials" or label == "Trial Mode" or label == "Trial Challenges") then
+            suppress(name, button)
+        end
     end
-    f:HookScript("OnShow",function()
-        -- The ForeverUI port and stock menu might place its buttons during
-        -- OnShow. Our late-loaded native integration runs after their hook.
-        M.Refresh()
-    end)
-    M.installed=true
-    if present(f) then M.Refresh() end
+end
+
+local function styleFrame(frame)
+    frame:SetWidth(282)
+    if not (_G.ForeverUI and ForeverUI.GameMenu) and frame.SetBackdrop then
+        frame:SetBackdrop({bgFile="Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile="Interface\\Tooltips\\UI-Tooltip-Border", tile=true, tileSize=32, edgeSize=22,
+            insets={left=7, right=7, top=7, bottom=7}})
+        frame:SetBackdropColor(0.028, 0.035, 0.047, 0.98)
+        frame:SetBackdropBorderColor(0.46, 0.4, 0.28, 0.96)
+    end
+    if frame.SetClampedToScreen then frame:SetClampedToScreen(true) end
+    local nativeHeading = _G.ForeverUI and ForeverUI.GameMenu and ForeverUI.GameMenu.header
+    if nativeHeading then
+        if M.heading then M.heading:Hide() end
+    else
+        if not M.heading then
+            M.heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+            M.heading:SetPoint("TOP", frame, "TOP", 0, -25)
+            M.heading:SetText("GAME MENU")
+        end
+        M.heading:Show()
+    end
+end
+
+function M.Fit()
+    local frame = _G.GameMenuFrame
+    if not frame or not UIParent or inCombat() then return end
+    local w, h = frame:GetWidth(), frame:GetHeight()
+    local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+    if not w or not h or not sw or not sh or w <= 0 or h <= 0 or sw <= 40 or sh <= 40 then return end
+    local current = frame:GetScale() or 1
+    if not M.lastFitScale or math.abs(current-M.lastFitScale) > 0.0001 then M.preferredScale=current end
+    local parent = frame.GetParent and frame:GetParent()
+    local ps = parent and parent.GetEffectiveScale and parent:GetEffectiveScale() or 1
+    local us = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+    if ps <= 0 or us <= 0 then return end
+    local scale = math.min(M.preferredScale, (sw-40)*us/(w*ps), (sh-40)*us/(h*ps))
+    if scale > 0 then frame:SetScale(scale); M.lastFitScale=scale end
+end
+
+local function refreshBody()
+    local frame = GameMenuFrame
+    M.HideTrialControls()
+    styleFrame(frame)
+    local rows = {{button=M.options}, {button=M.edit}}
+    local function append(name, gap)
+        local button = secureNative(name)
+        if button then rows[#rows+1]={button=button, gap=gap or 0} end
+    end
+    append("GameMenuButtonKeybindings")
+    append("GameMenuButtonMacros")
+    append("GameMenuButtonAddOns")
+    append("GameMenuButtonHelp")
+    append("GameMenuButtonLogout", 10)
+    append("GameMenuButtonQuit")
+    append("GameMenuButtonContinue", 10)
+    for _, name in ipairs({"GameMenuButtonOptions", "GameMenuButtonSoundOptions", "GameMenuButtonMacOptions",
+        "GameMenuButtonUIOptions", "GameMenuButtonRatings", "GameMenuButtonDiscord",
+        "GameMenuButtonJoinDiscord", "GameMenuButtonReportBug"}) do
+        local old = _G[name]
+        if old and old ~= M.options and old ~= M.edit then old:Hide() end
+    end
+    if hasEditMode() then M.edit:Enable() else M.edit:Disable() end
+    if type(AF.OpenSettings) == "function" or InterfaceOptionsFrame then M.options:Enable() else M.options:Disable() end
+    local y = 62
+    for _, row in ipairs(rows) do
+        y = y + (row.gap or 0)
+        local button = row.button
+        styleButton(button)
+        button:ClearAllPoints()
+        button:SetPoint("TOP", frame, "TOP", 0, -y)
+        button:Show()
+        y = y + 36
+    end
+    frame:SetHeight(y+18)
+    M.buttonCount, M.buttons = #rows, rows
+    M.Fit()
+    M.pending = false
+end
+
+function M.Refresh()
+    if not _G.GameMenuFrame or not M.installed or M.locked then return false end
+    if inCombat() then M.pending=true; return false end
+    M.locked = true
+    local ok, err = pcall(refreshBody)
+    M.locked = nil
+    if not ok then
+        if M.lastError ~= tostring(err) then notice(err) end
+        M.lastError = tostring(err)
+        return false
+    end
+    M.lastError = nil
     return true
 end
 
-local watcher=CreateFrame("Frame")
-watcher:RegisterEvent("PLAYER_LOGIN")
-watcher:SetScript("OnEvent",function() M.Install() end)
-watcher.elapsed=0
-watcher:SetScript("OnUpdate",function(self,dt)
-    self.elapsed=self.elapsed+(dt or 0)
-    if self.elapsed<1 then return end
-    self.elapsed=0
-    if not M.installed then M.Install() end
-    M.HideTrialControls()
+function M.Install()
+    if M.installed then return true end
+    if not _G.GameMenuFrame or inCombat() then return false end
+    M.options = makeButton(GameMenuFrame, "Options", options)
+    M.edit = makeButton(GameMenuFrame, "Edit Mode", editMode)
+    GameMenuFrame:HookScript("OnShow", function() M.Refresh() end)
+    M.installed = true
+    if GameMenuFrame:IsShown() then M.Refresh() end
+    return true
+end
+
+local watcher = CreateFrame("Frame")
+for _, event in ipairs({"PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_ENABLED",
+                        "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED"}) do watcher:RegisterEvent(event) end
+watcher:SetScript("OnEvent", function()
+    M.Install()
+    if M.installed then
+        M.HideTrialControls()
+        if GameMenuFrame:IsShown() then M.Refresh() end
+    end
+end)
+watcher.elapsed = 0
+watcher:SetScript("OnUpdate", function(self, elapsed)
+    if M.installed then self:SetScript("OnUpdate", nil); return end
+    self.elapsed = self.elapsed + (elapsed or 0)
+    if self.elapsed >= 1 then self.elapsed=0; M.Install() end
 end)
